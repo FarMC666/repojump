@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../api';
-import type { AppSnapshot, Settings } from '../models';
+import type { AppSnapshot, Settings, VscodeStartup } from '../models';
 import type { Translate } from '../i18n';
 import { errorText } from '../i18n';
 import { Dialog } from './Dialog';
@@ -21,7 +21,7 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setDraft(previous => ({ ...previous, [key]: value }));
   const save = async () => {
     setBusy(true); setError(null);
-    try { update(await api.settings({ ...draft, vscodePath: draft.vscodePath?.trim() || null, globalShortcut: draft.globalShortcut?.trim() || null })); onClose(); }
+    try { update(await api.settings({ ...draft, vscodePath: draft.vscodePath?.trim() || null, globalShortcut: draft.globalShortcut?.trim() || null, defaultVscodeStartup: draft.defaultVscodeStartup.kind === 'file' ? { kind: 'file', path: draft.defaultVscodeStartup.path.trim() } : draft.defaultVscodeStartup })); onClose(); }
     catch (e) { setError(e); } finally { setBusy(false); }
   };
   const record = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -52,6 +52,11 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
         <section><h3>{t('discovery')}</h3><div className="setting-grid"><label htmlFor="depth">{t('scanDepth')}</label><input id="depth" type="number" min={1} max={8} required value={draft.scanDepth} onChange={e => set('scanDepth', Number(e.target.value))} /></div><p>{t('depthHint')}</p></section>
         <section><h3>{t('launching')}</h3><label htmlFor="code-path">{t('codePath')}</label><div className="input-actions"><input id="code-path" placeholder={t('autoDetect')} value={draft.vscodePath ?? ''} onChange={e => set('vscodePath', e.target.value || null)} /><button type="button" className="secondary-button" onClick={async () => { try { const path = await api.pickCode(); if (typeof path === 'string') set('vscodePath', path); } catch (e) { setError(e); } }}>{t('browse')}</button></div>
           {draft.vscodePath && <button type="button" className="text-button" onClick={() => set('vscodePath', null)}>{t('reset')}</button>}
+          <div className="setting-grid terminal-setting"><label htmlFor="default-startup-kind">{t('defaultVscodeStartup')}</label><select id="default-startup-kind" disabled={busy} value={draft.defaultVscodeStartup.kind} onChange={e => { const kind = e.target.value as VscodeStartup['kind']; set('defaultVscodeStartup', kind === 'file' ? { kind, path: '' } : { kind }); }}><option value="default">{t('startupDefault')}</option><option value="file">{t('startupFile')}</option><option value="gitGraph">Git Graph</option></select></div>
+          <p>{t('defaultStartupHint')}</p>
+          {draft.defaultVscodeStartup.kind === 'default' && <p>{t('startupDefaultHint')}</p>}
+          {draft.defaultVscodeStartup.kind === 'file' && <><label htmlFor="default-startup-file">{t('startupFilePath')}</label><input id="default-startup-file" required disabled={busy} placeholder="index.html" value={draft.defaultVscodeStartup.path} onChange={e => set('defaultVscodeStartup', { kind: 'file', path: e.target.value })} /><p>{t('startupDefaultFileHint')}</p></>}
+          {draft.defaultVscodeStartup.kind === 'gitGraph' && <p>{t('startupGitGraphHint')}</p>}
           <div className="setting-grid terminal-setting"><label htmlFor="terminal">{t('terminal')}</label><select id="terminal" value={draft.terminal} onChange={e => set('terminal', e.target.value as Settings['terminal'])}><option value="auto">{t('terminalAuto')}</option><option value="windowsTerminal">Windows Terminal</option><option value="powershell">PowerShell</option></select></div>
         </section>
         <section><h3>{t('shortcut')}</h3><label className="check-label"><input type="checkbox" checked={draft.globalShortcut !== null} onChange={e => set('globalShortcut', e.target.checked ? 'Ctrl+Alt+P' : null)} />{t('shortcutEnabled')}</label>

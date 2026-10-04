@@ -3,6 +3,10 @@ import type { AppError, Settings } from './models';
 const en = {
   vscodeStartup: 'VS Code startup content', startupContent: 'Show when opening this project', startupDefault: 'Default', startupFile: 'Specified file', startupFilePath: 'Project-relative file path',
   startupDefaultHint: 'Use the usual VS Code startup behavior.', startupFileHint: 'Choose an existing file inside this project, such as index.html or src/main.ts.',
+  defaultVscodeStartup: 'Default VS Code startup content', defaultStartupHint: 'Used by projects that follow the global setting. Project-specific startup content takes priority.',
+  startupInherit: 'Follow global setting', startupInheritHint: 'Use the default startup content from Settings. Current default:',
+  startupDefaultFileHint: 'Resolve this relative path inside each project, such as index.html. If the file is unavailable, the project still opens with a warning.',
+  startupDefaultFileInvalid: 'Enter a project-relative file path without an absolute path or .. components.',
   startupGitGraphHint: 'Requires Git Graph. RepoJump installs its companion extension on first use and opens this project in a managed workspace. If unavailable, the project still opens with a warning.',
   startupFileInvalid: 'Choose an existing file inside this project using a relative path.', startupFileUnavailable: 'The project was opened, but the startup file is missing or unavailable. Update its startup content.',
   startupHelperFailed: 'The project was opened, but the RepoJump companion extension could not be installed.', startupContentFailed: 'The project was opened, but its startup content could not be shown.',
@@ -50,6 +54,10 @@ type Key = keyof typeof en;
 const zh: Record<Key, string> = {
   vscodeStartup: 'VS Code 启动内容', startupContent: '打开此项目时显示', startupDefault: '默认', startupFile: '指定文件', startupFilePath: '项目内的文件相对路径',
   startupDefaultHint: '使用 VS Code 原有的启动行为。', startupFileHint: '选择项目内已存在的文件，例如 index.html 或 src/main.ts。',
+  defaultVscodeStartup: '默认 VS Code 启动内容', defaultStartupHint: '用于跟随全局设置的项目，项目单独配置的启动内容优先。',
+  startupInherit: '跟随全局设置', startupInheritHint: '使用设置页的默认启动内容。当前默认：',
+  startupDefaultFileHint: '在每个项目内分别读取此相对路径，例如 index.html。文件不存在时仍打开项目并提示。',
+  startupDefaultFileInvalid: '请输入项目内的文件相对路径，不可使用绝对路径或包含 .. 的路径。',
   startupGitGraphHint: '需要已安装 Git Graph。首次使用会自动安装 RepoJump 配套扩展，以托管工作区打开此项目。启动内容不可用时仍打开项目并提示。',
   startupFileInvalid: '请输入项目内已存在文件的相对路径，或重新选择文件。', startupFileUnavailable: '项目已打开，但启动文件不存在或无法访问，请修改启动内容。',
   startupHelperFailed: '项目已打开，但 RepoJump 配套扩展未能安装。', startupContentFailed: '项目已打开，但启动内容未能显示。',

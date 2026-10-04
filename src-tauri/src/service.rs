@@ -338,8 +338,8 @@ impl AppState {
         })
     }
 
-    pub fn save_settings(&self, app: &AppHandle, next: Settings) -> AppResult<AppSnapshot> {
-        settings::validate(&next)?;
+    pub fn save_settings(&self, app: &AppHandle, mut next: Settings) -> AppResult<AppSnapshot> {
+        settings::validate(&mut next)?;
         let (mut snapshot, rescan) = {
             let mut inner = self.inner.lock().unwrap();
             let previous = inner.user.settings.clone();
@@ -490,12 +490,7 @@ impl AppState {
                 let inner = self.inner.lock().unwrap();
                 (
                     inner.user.settings.clone(),
-                    inner
-                        .user
-                        .vscode_startup_overrides
-                        .get(id)
-                        .cloned()
-                        .unwrap_or_default(),
+                    inner.user.vscode_startup_for(id).clone(),
                 )
             };
             let mut warnings = Vec::new();

@@ -1,11 +1,11 @@
 use crate::{
     launcher,
-    model::{AppError, AppResult, Settings},
+    model::{AppError, AppResult, Settings, VscodeStartup},
 };
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-pub fn validate(settings: &Settings) -> AppResult<()> {
+pub fn validate(settings: &mut Settings) -> AppResult<()> {
     if !matches!(settings.theme.as_str(), "dark" | "light" | "system")
         || !matches!(settings.language.as_str(), "en" | "zh-CN" | "system")
         || !matches!(
@@ -18,6 +18,14 @@ pub fn validate(settings: &Settings) -> AppResult<()> {
     }
     if settings.vscode_path.is_some() {
         launcher::vscode(settings)?;
+    }
+    if let VscodeStartup::File { path } = &mut settings.default_vscode_startup {
+        *path = crate::paths::startup_file_path(path).map_err(|error| {
+            AppError::new(
+                "startupDefaultFileInvalid",
+                error.detail.unwrap_or_default(),
+            )
+        })?;
     }
     if let Some(location) = &settings.data_location {
         crate::paths::directory(location)?;
@@ -58,4 +66,51 @@ pub fn change_shortcut(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_startup_accepts_relative_paths_without_requiring_a_project() {
+        for input in [
+            " index.html ",
+            "src\\页面 & (test); $.html",
+            "not-created-yet.html",
+        ] {
+            let mut settings = Settings {
+                default_vscode_startup: VscodeStartup::File { path: input.into() },
+                ..Settings::default()
+            };
+            validate(&mut settings).unwrap();
+            assert_eq!(
+                settings.default_vscode_startup,
+                VscodeStartup::File {
+                    path: input.trim().replace('\\', "/")
+                }
+            );
+        }
+        for input in [
+            "",
+            " ",
+            "../outside.html",
+            "src/../outside.html",
+            "C:file.html",
+            "C:\\file.html",
+            "/file.html",
+            "\\\\host\\share\\file",
+            "nul\0.html",
+        ] {
+            let mut settings = Settings {
+                default_vscode_startup: VscodeStartup::File { path: input.into() },
+                ..Settings::default()
+            };
+            assert_eq!(
+                validate(&mut settings).unwrap_err().code,
+                "startupDefaultFileInvalid",
+                "{input}"
+            );
+        }
+    }
 }

@@ -4,6 +4,7 @@ export interface Settings {
   language: 'en' | 'zh-CN' | 'system';
   scanDepth: number;
   vscodePath: string | null;
+  defaultVscodeStartup: VscodeStartup;
   terminal: 'auto' | 'powershell' | 'windowsTerminal';
   globalShortcut: string | null;
   closeToTray: boolean;
@@ -29,5 +30,6 @@ export interface LaunchResult { snapshot: AppSnapshot | null; warnings: AppError
 
 export const defaultSettings: Settings = {
   theme: 'dark', language: 'system', scanDepth: 4, vscodePath: null,
+  defaultVscodeStartup: { kind: 'default' },
   terminal: 'auto', globalShortcut: 'Ctrl+Alt+P', closeToTray: true, dataLocation: null,
 };

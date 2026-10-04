@@ -32,8 +32,8 @@ pub fn is_reparse(metadata: &std::fs::Metadata) -> bool {
     }
 }
 
-/// Resolve a saved project-relative file, rejecting traversal and Windows drive-relative paths.
-pub fn project_file(project: &Path, relative: &str) -> AppResult<PathBuf> {
+/// Validate a relative startup path without requiring a particular project to contain it.
+pub fn startup_file_path(relative: &str) -> AppResult<String> {
     let invalid = || AppError::new("startupFileInvalid", relative);
     let relative = relative.trim();
     if relative.is_empty()
@@ -43,7 +43,13 @@ pub fn project_file(project: &Path, relative: &str) -> AppResult<PathBuf> {
     {
         return Err(invalid());
     }
-    let candidate = project.join(relative.replace('\\', "/"));
+    Ok(relative.replace('\\', "/"))
+}
+
+/// Resolve a saved project-relative file, including reparse-point containment checks.
+pub fn project_file(project: &Path, relative: &str) -> AppResult<PathBuf> {
+    let invalid = || AppError::new("startupFileInvalid", relative);
+    let candidate = project.join(startup_file_path(relative)?);
     let root = dunce::canonicalize(project).map_err(|_| invalid())?;
     let file = dunce::canonicalize(candidate).map_err(|_| invalid())?;
     if !file.is_file() || !file.starts_with(&root) {

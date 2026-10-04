@@ -40,6 +40,7 @@ pub struct Settings {
     pub language: String,
     pub scan_depth: u8,
     pub vscode_path: Option<String>,
+    pub default_vscode_startup: VscodeStartup,
     pub terminal: String,
     pub global_shortcut: Option<String>,
     pub close_to_tray: bool,
@@ -53,6 +54,7 @@ impl Default for Settings {
             language: "system".into(),
             scan_depth: 4,
             vscode_path: None,
+            default_vscode_startup: VscodeStartup::Default,
             terminal: "auto".into(),
             global_shortcut: Some("Ctrl+Alt+P".into()),
             close_to_tray: true,
@@ -95,6 +97,15 @@ impl Default for UserData {
             vscode_startup_overrides: BTreeMap::new(),
             settings: Settings::default(),
         }
+    }
+}
+
+impl UserData {
+    pub fn vscode_startup_for(&self, id: &str) -> &VscodeStartup {
+        self.vscode_startup_overrides
+            .get(id)
+            .filter(|startup| **startup != VscodeStartup::Default)
+            .unwrap_or(&self.settings.default_vscode_startup)
     }
 }
 
@@ -207,4 +218,59 @@ pub fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn projects_inherit_global_startup_unless_overridden() {
+        let mut user = UserData::default();
+        assert_eq!(
+            user.vscode_startup_for("inherited"),
+            &VscodeStartup::Default
+        );
+        user.settings.default_vscode_startup = VscodeStartup::GitGraph;
+        user.vscode_startup_overrides.insert(
+            "file".into(),
+            VscodeStartup::File {
+                path: "index.html".into(),
+            },
+        );
+        user.vscode_startup_overrides
+            .insert("legacy-default".into(), VscodeStartup::Default);
+        assert_eq!(
+            user.vscode_startup_for("inherited"),
+            &VscodeStartup::GitGraph
+        );
+        assert_eq!(
+            user.vscode_startup_for("legacy-default"),
+            &VscodeStartup::GitGraph
+        );
+        assert_eq!(
+            user.vscode_startup_for("file"),
+            &VscodeStartup::File {
+                path: "index.html".into()
+            }
+        );
+        user.settings.default_vscode_startup = VscodeStartup::File {
+            path: "src/main.ts".into(),
+        };
+        assert_eq!(
+            user.vscode_startup_for("inherited"),
+            &user.settings.default_vscode_startup
+        );
+        assert_eq!(
+            user.vscode_startup_for("file"),
+            &VscodeStartup::File {
+                path: "index.html".into()
+            }
+        );
+        user.vscode_startup_overrides.remove("file");
+        assert_eq!(
+            user.vscode_startup_for("file"),
+            &user.settings.default_vscode_startup
+        );
+    }
 }

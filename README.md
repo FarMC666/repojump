@@ -79,13 +79,15 @@ Startup displays the cache before refreshing it. There is no filesystem watcher:
 
 **VS Code:** RepoJump launches `Code.exe` with `--new-window` and the project path as separate arguments. It checks the configured executable first, then PATH, registry entries and common installation locations. Set a path in Settings if automatic detection fails. Spaces, Chinese characters and shell punctuation remain part of the path.
 
-Use **VS Code startup content** in the project menu to save one option per project. Enter, double-click and the Open button all apply it:
+Set **Default VS Code startup content** in Settings → Launching to choose normal opening, a project-relative file or Git Graph for projects without an override. A default file path is resolved inside each project when launched; missing files still open the project with a warning.
 
-- **Default:** use VS Code's normal startup behavior.
+Use **VS Code startup content** in the project menu to override the global setting for a project. Enter, double-click and the Open button all apply it:
+
+- **Follow global setting:** use the default startup content from Settings.
 - **File:** enter a project-relative path, such as `index.html`, or use the native file picker. The file must exist inside the project and becomes the active editor when launched.
 - **Git Graph:** show Git Graph in the new project window. Install and enable `mhutchie.git-graph` first; RepoJump automatically installs its bundled companion extension on first use. This mode opens a unique workspace stored in application data without changing project files. Only the current RepoJump request triggers Git Graph; manually opening a project or restoring a consumed workspace does not repeat it.
 
-An unavailable file, installation failure, missing Git Graph or timeout still leaves the project open and shows a warning. The saved option remains, and Recent is updated. Selecting Default removes the project's override.
+An unavailable file, installation failure, missing Git Graph or timeout still leaves the project open and shows a warning. The saved option remains, and Recent is updated. Selecting Follow global setting removes the project's override.
 
 **Terminal:** Automatic mode tries Windows Terminal, then PowerShell. PowerShell uses the process working directory and `-NoProfile -NoExit`; project paths are never inserted into a shell script. Paths containing semicolons use PowerShell to avoid Windows Terminal command-separator ambiguity.
 

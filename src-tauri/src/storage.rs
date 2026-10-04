@@ -159,6 +159,42 @@ impl Storage {
 mod tests {
     use super::*;
     #[test]
+    fn global_startup_is_compatible_with_old_settings_and_persists_with_overrides() {
+        use crate::model::VscodeStartup;
+        let legacy = decode_user(br#"{"schemaVersion":1,"profileId":"existing","settings":{"scanDepth":2},"vscodeStartupOverrides":{"project":{"kind":"gitGraph"}}}"#).unwrap();
+        assert_eq!(
+            legacy.settings.default_vscode_startup,
+            VscodeStartup::Default
+        );
+        assert_eq!(legacy.vscode_startup_for("other"), &VscodeStartup::Default);
+        assert_eq!(
+            legacy.vscode_startup_for("project"),
+            &VscodeStartup::GitGraph
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let (store, _, _, _) = Storage::load(temp.path().into());
+        let mut user = legacy;
+        for startup in [
+            VscodeStartup::File {
+                path: "首页 & (index); $.html".into(),
+            },
+            VscodeStartup::GitGraph,
+            VscodeStartup::Default,
+        ] {
+            user.settings.default_vscode_startup = startup.clone();
+            store.save_user(&user).unwrap();
+            let (_, restored, _, warnings) = Storage::load(temp.path().into());
+            assert!(warnings.is_empty());
+            assert_eq!(restored.profile_id, "existing");
+            assert_eq!(restored.settings, user.settings);
+            assert_eq!(restored.vscode_startup_for("other"), &startup);
+            assert_eq!(
+                restored.vscode_startup_for("project"),
+                &VscodeStartup::GitGraph
+            );
+        }
+    }
+    #[test]
     fn startup_overrides_load_legacy_data_and_round_trip_independently() {
         use crate::model::VscodeStartup;
         let legacy = decode_user(br#"{"schemaVersion":1,"favorites":["one"]}"#).unwrap();

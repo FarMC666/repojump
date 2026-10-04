@@ -729,6 +729,7 @@ mod tests {
         user.vscode_startup_overrides
             .insert("other".into(), VscodeStartup::GitGraph);
         let startup = user.vscode_startup_overrides.clone();
+        user.settings.default_vscode_startup = VscodeStartup::GitGraph;
         user.favorites.insert("project".into());
         user.recent.insert("project".into(), 123);
         user.roots.push(CodeRoot {
@@ -761,6 +762,10 @@ mod tests {
         assert!(user.favorites.contains("project"));
         assert_eq!(user.recent["project"], 123);
         assert_eq!(user.vscode_startup_overrides, startup);
+        assert_eq!(
+            user.settings.default_vscode_startup,
+            VscodeStartup::GitGraph
+        );
         assert_eq!(manager.bootstrap_directory(), bootstrap);
         user.settings.data_location = None;
         user.roots.clear();
@@ -769,6 +774,10 @@ mod tests {
         let (_, restored, _, warnings) = StorageManager::load(base);
         assert!(warnings.is_empty());
         assert_eq!(restored.vscode_startup_overrides, startup);
+        assert_eq!(
+            restored.settings.default_vscode_startup,
+            VscodeStartup::GitGraph
+        );
         assert!(root.join(FOLDER).join("state.json").is_file());
     }
 

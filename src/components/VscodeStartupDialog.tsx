@@ -4,8 +4,8 @@ import type { AppSnapshot, Project, VscodeStartup } from '../models';
 import { errorText, type Translate } from '../i18n';
 import { Dialog } from './Dialog';
 
-export function VscodeStartupDialog({ project, t, onClose, update }: {
-  project: Project; t: Translate; onClose: () => void; update: (snapshot: AppSnapshot) => void;
+export function VscodeStartupDialog({ project, defaultStartup, t, onClose, update }: {
+  project: Project; defaultStartup: VscodeStartup; t: Translate; onClose: () => void; update: (snapshot: AppSnapshot) => void;
 }) {
   const [kind, setKind] = useState(project.vscodeStartup.kind);
   const [path, setPath] = useState(project.vscodeStartup.kind === 'file' ? project.vscodeStartup.path : '');
@@ -28,11 +28,11 @@ export function VscodeStartupDialog({ project, t, onClose, update }: {
         <p className="dialog-project">{project.name}</p>
         <label htmlFor="startup-kind">{t('startupContent')}</label>
         <select id="startup-kind" autoFocus value={kind} disabled={busy} onChange={e => { setKind(e.target.value as VscodeStartup['kind']); setError(null); }}>
-          <option value="default">{t('startupDefault')}</option>
+          <option value="default">{t('startupInherit')}</option>
           <option value="file">{t('startupFile')}</option>
           <option value="gitGraph">Git Graph</option>
         </select>
-        {kind === 'default' && <p>{t('startupDefaultHint')}</p>}
+        {kind === 'default' && <p>{t('startupInheritHint')} {defaultStartup.kind === 'file' ? `${t('startupFile')} (${defaultStartup.path})` : defaultStartup.kind === 'gitGraph' ? 'Git Graph' : t('startupDefault')}</p>}
         {kind === 'file' && <>
           <label htmlFor="startup-file">{t('startupFilePath')}</label>
           <div className="input-actions"><input id="startup-file" placeholder="index.html" required value={path} disabled={busy} onChange={e => setPath(e.target.value)} /><button type="button" className="secondary-button" disabled={busy} onClick={() => { void browse(); }}>{t('browse')}</button></div>
