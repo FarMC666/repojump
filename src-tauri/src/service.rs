@@ -3,7 +3,7 @@ use crate::{
     discovery::{self, ScanEvent},
     git, launcher,
     model::*,
-    paths, settings,
+    paths, settings, vscode_startup,
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -29,6 +29,7 @@ pub struct Inner {
 
 pub struct AppState {
     pub inner: Mutex<Inner>,
+    startup_directory: PathBuf,
     git_cache: Mutex<HashMap<String, (Instant, GitMetadata)>>,
     launches: Mutex<HashSet<String>>,
 }
@@ -96,8 +97,11 @@ fn promote_manual_source(user: &mut UserData, path: String) {
 impl AppState {
     pub fn new(directory: PathBuf) -> Self {
         let (storage, user, mut index, warnings) = StorageManager::load(directory);
+        let startup_directory = storage.bootstrap_directory().to_path_buf();
+        vscode_startup::cleanup_expired(&startup_directory);
         reconcile(&user, &mut index);
         Self {
+            startup_directory,
             inner: Mutex::new(Inner {
                 storage,
                 user,
@@ -133,6 +137,12 @@ impl AppState {
                     category_override: inner.user.category_overrides.contains_key(&record.id),
                     favorite: inner.user.favorites.contains(&record.id),
                     last_opened_at: inner.user.recent.get(&record.id).copied(),
+                    vscode_startup: inner
+                        .user
+                        .vscode_startup_overrides
+                        .get(&record.id)
+                        .cloned()
+                        .unwrap_or_default(),
                 })
                 .collect(),
             settings: inner.user.settings.clone(),
@@ -387,6 +397,40 @@ impl AppState {
         Ok(snapshot)
     }
 
+    pub fn set_vscode_startup(
+        &self,
+        app: &AppHandle,
+        id: String,
+        startup: VscodeStartup,
+    ) -> AppResult<AppSnapshot> {
+        self.mutate(app, false, |user, index| {
+            let project = index
+                .projects
+                .get(&id)
+                .ok_or_else(|| AppError::new("projectNotFound", &id))?;
+            let startup = match startup {
+                VscodeStartup::File { path } => {
+                    let root = paths::directory(&project.path)?;
+                    let file = paths::project_file(&root, &path)?;
+                    VscodeStartup::File {
+                        path: paths::relative_project_file(&root, &file)?,
+                    }
+                }
+                startup => startup,
+            };
+            if startup == VscodeStartup::Default {
+                user.vscode_startup_overrides.remove(&id);
+            } else {
+                user.vscode_startup_overrides.insert(id, startup);
+            }
+            Ok(())
+        })
+    }
+
+    pub fn project_directory(&self, id: &str) -> AppResult<PathBuf> {
+        paths::directory(&self.project(id)?.path)
+    }
+
     fn project(&self, id: &str) -> AppResult<ProjectRecord> {
         self.inner
             .lock()
@@ -442,9 +486,29 @@ impl AppState {
         let result = (|| {
             let project = self.project(id)?;
             let path = paths::directory(&project.path)?;
-            let settings = self.inner.lock().unwrap().user.settings.clone();
+            let (settings, startup) = {
+                let inner = self.inner.lock().unwrap();
+                (
+                    inner.user.settings.clone(),
+                    inner
+                        .user
+                        .vscode_startup_overrides
+                        .get(id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            };
+            let mut warnings = Vec::new();
             match target {
-                LaunchTarget::Vscode => launcher::open_vscode(&path, &settings)?,
+                LaunchTarget::Vscode => {
+                    warnings = vscode_startup::open(
+                        app,
+                        &self.startup_directory,
+                        &path,
+                        &settings,
+                        &startup,
+                    )?
+                }
                 LaunchTarget::Terminal => launcher::open_terminal(&path, &settings)?,
                 LaunchTarget::Explorer => app
                     .opener()
@@ -467,20 +531,23 @@ impl AppState {
                 }) {
                     Ok(snapshot) => Ok(LaunchResult {
                         snapshot: Some(snapshot),
-                        warning: None,
+                        warnings,
                     }),
-                    Err(error) => Ok(LaunchResult {
-                        snapshot: None,
-                        warning: Some(AppError::new(
+                    Err(error) => {
+                        warnings.push(AppError::new(
                             "recentSaveFailed",
                             error.detail.unwrap_or_default(),
-                        )),
-                    }),
+                        ));
+                        Ok(LaunchResult {
+                            snapshot: None,
+                            warnings,
+                        })
+                    }
                 }
             } else {
                 Ok(LaunchResult {
                     snapshot: None,
-                    warning: None,
+                    warnings,
                 })
             }
         })();

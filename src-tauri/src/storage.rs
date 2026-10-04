@@ -159,6 +159,70 @@ impl Storage {
 mod tests {
     use super::*;
     #[test]
+    fn startup_overrides_load_legacy_data_and_round_trip_independently() {
+        use crate::model::VscodeStartup;
+        let legacy = decode_user(br#"{"schemaVersion":1,"favorites":["one"]}"#).unwrap();
+        assert!(legacy.vscode_startup_overrides.is_empty());
+        assert!(legacy.favorites.contains("one"));
+        let temp = tempfile::tempdir().unwrap();
+        let (store, mut user, _, _) = Storage::load(temp.path().into());
+        user.vscode_startup_overrides.insert(
+            "one".into(),
+            VscodeStartup::File {
+                path: "src/index.html".into(),
+            },
+        );
+        user.vscode_startup_overrides
+            .insert("two".into(), VscodeStartup::GitGraph);
+        store.save_user(&user).unwrap();
+        let (_, restored, _, _) = Storage::load(temp.path().into());
+        assert_eq!(
+            restored.vscode_startup_overrides,
+            user.vscode_startup_overrides
+        );
+        user.vscode_startup_overrides.remove("one");
+        store.save_user(&user).unwrap();
+        let (_, restored, _, _) = Storage::load(temp.path().into());
+        assert!(!restored.vscode_startup_overrides.contains_key("one"));
+        assert_eq!(
+            restored.vscode_startup_overrides["two"],
+            VscodeStartup::GitGraph
+        );
+    }
+    #[test]
+    fn startup_updates_preserve_v014_profile_and_storage_preferences() {
+        use crate::model::{CodeRoot, VscodeStartup};
+        let temp = tempfile::tempdir().unwrap();
+        let (store, mut user, _, _) = Storage::load(temp.path().into());
+        user.roots.push(CodeRoot {
+            id: "existing-root".into(),
+            path: "D:/代码 & (projects); $".into(),
+        });
+        user.settings.data_location = Some("D:/Custom 数据".into());
+        user.favorites.insert("existing-project".into());
+        user.recent.insert("existing-project".into(), 123);
+        user.category_overrides
+            .insert("existing-project".into(), "App".into());
+        store.save_user(&user).unwrap();
+        let (_, mut loaded, _, _) = Storage::load(temp.path().into());
+        loaded
+            .vscode_startup_overrides
+            .insert("existing-project".into(), VscodeStartup::GitGraph);
+        store.save_user(&loaded).unwrap();
+        let (_, restored, _, _) = Storage::load(temp.path().into());
+        assert_eq!(restored.profile_id, user.profile_id);
+        assert_eq!(restored.roots, user.roots);
+        assert_eq!(restored.settings, user.settings);
+        assert_eq!(restored.favorites, user.favorites);
+        assert_eq!(restored.recent, user.recent);
+        assert_eq!(restored.category_overrides, user.category_overrides);
+        assert_eq!(
+            restored.vscode_startup_overrides["existing-project"],
+            VscodeStartup::GitGraph
+        );
+    }
+
+    #[test]
     fn persistence_resolves_the_actual_parent_before_atomic_replacement() {
         let temp = tempfile::tempdir().unwrap();
         let logical = temp.path().join("data").join("..").join("data");

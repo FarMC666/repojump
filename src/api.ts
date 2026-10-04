@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { AppSnapshot, GitMetadata, LaunchResult, LaunchTarget, Settings } from './models';
+import type { AppSnapshot, GitMetadata, LaunchResult, LaunchTarget, Settings, VscodeStartup } from './models';
 
 export const isDesktop = () => '__TAURI_INTERNALS__' in window;
 export const api = {
@@ -16,6 +16,8 @@ export const api = {
   removeProject: (id: string) => invoke<AppSnapshot>('remove_manual_project', { id }),
   favorite: (id: string, favorite: boolean) => invoke<AppSnapshot>('set_favorite', { id, favorite }),
   category: (id: string, category: string | null) => invoke<AppSnapshot>('set_category_override', { id, category }),
+  vscodeStartup: (id: string, startup: VscodeStartup) => invoke<AppSnapshot>('set_vscode_startup', { id, startup }),
+  pickProjectFile: (id: string) => invoke<string | null>('pick_project_file', { id }),
   settings: (settings: Settings) => invoke<AppSnapshot>('update_settings', { settings }),
   syncTrayLanguage: (language: 'en' | 'zh-CN') => invoke<void>('sync_tray_language', { language }),
   git: (id: string) => invoke<GitMetadata>('get_git_metadata', { id }),

@@ -148,6 +148,8 @@ kbd { font: 10px 'Segoe UI', sans-serif; color: var(--secondary); border: 1px so
 .data-path { display: block; font-family: Consolas, 'Microsoft YaHei UI', monospace; font-size: 11px; background: var(--bg); border: 1px solid var(--border); padding: 10px; border-radius: 6px; overflow-wrap: anywhere; }
 .version { color: var(--muted) !important; margin: 12px 0 0 !important; font-size: 10px !important; }
 .form-error { flex-basis: 100%; color: var(--danger); margin: 0 0 4px; font-size: 12px; line-height: 1.5; }
+.startup-body select { width: 100%; margin-bottom: 16px; }
+.startup-body p { margin-top: 10px; font-size: 12px; }
 .toast { position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 9px; padding: 10px 12px; background: var(--raised); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: 8px; z-index: 100; max-width: min(560px, calc(100vw - 30px)); font-size: 12px; }
 .toast > svg { flex-shrink: 0; color: #73aa8a; }
 .toast.error > svg { color: var(--danger); }

@@ -22,6 +22,17 @@ impl AppError {
 
 pub type AppResult<T> = Result<T, AppError>;
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum VscodeStartup {
+    #[default]
+    Default,
+    File {
+        path: String,
+    },
+    GitGraph,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -67,6 +78,7 @@ pub struct UserData {
     pub favorites: BTreeSet<String>,
     pub recent: BTreeMap<String, u64>,
     pub category_overrides: BTreeMap<String, String>,
+    pub vscode_startup_overrides: BTreeMap<String, VscodeStartup>,
     pub settings: Settings,
 }
 
@@ -80,6 +92,7 @@ impl Default for UserData {
             favorites: BTreeSet::new(),
             recent: BTreeMap::new(),
             category_overrides: BTreeMap::new(),
+            vscode_startup_overrides: BTreeMap::new(),
             settings: Settings::default(),
         }
     }
@@ -133,6 +146,7 @@ pub struct Project {
     pub category_override: bool,
     pub favorite: bool,
     pub last_opened_at: Option<u64>,
+    pub vscode_startup: VscodeStartup,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,7 +199,7 @@ pub enum LaunchTarget {
 #[serde(rename_all = "camelCase")]
 pub struct LaunchResult {
     pub snapshot: Option<AppSnapshot>,
-    pub warning: Option<AppError>,
+    pub warnings: Vec<AppError>,
 }
 
 pub fn now_ms() -> u64 {

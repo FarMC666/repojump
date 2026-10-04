@@ -2,6 +2,7 @@ use crate::{
     discovery,
     model::*,
     paths,
+    picker::{self, PickerKind},
     service::{self, AppState},
 };
 use tauri::{AppHandle, Manager, State};
@@ -90,6 +91,25 @@ pub fn set_category_override(
     category: Option<String>,
 ) -> AppResult<AppSnapshot> {
     state.set_category(&app, id, category)
+}
+
+#[tauri::command]
+pub fn set_vscode_startup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    startup: VscodeStartup,
+) -> AppResult<AppSnapshot> {
+    state.set_vscode_startup(&app, id, startup)
+}
+
+#[tauri::command]
+pub async fn pick_project_file(app: AppHandle, id: String) -> AppResult<Option<String>> {
+    let directory = app.state::<AppState>().project_directory(&id)?;
+    let selected = picker::pick(PickerKind::ProjectFile, Some(directory.clone())).await?;
+    selected
+        .map(|path| paths::relative_project_file(&directory, std::path::Path::new(&path)))
+        .transpose()
 }
 #[tauri::command]
 pub fn update_settings(

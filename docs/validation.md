@@ -1,5 +1,40 @@
 # RepoJump 验收记录
 
+## 0.1.4：复审后集成 VS Code 启动内容
+
+2026-10-04，以恢复后的 0.1.4 为基准复审集成，保留数据位置迁移修复、托盘语言同步和原版本号。代码分析见 [集成审查](vscode-startup-review.md)。
+
+- TypeScript typecheck、Vite production build、5 项 Vitest、9 项配套扩展测试、34 项 Rust 测试、fmt 和 Clippy all-targets / warnings as errors 通过。
+- 新回归测试在第一次集成代码上复现旧配置缺少启动字段而触发 `storageLocationFallback`；修正后恢复原 profile 与 Root 标识，合并无冲突新增选项。同一项目选项冲突和其他用户记录有差异时，原保护继续生效。持久化测试确认 `profileId`、`dataLocation` 和原记录不因保存启动配置而丢失。
+- 配置迁移回归覆盖启动内容在根目录、自定义目录与恢复位置之间保存和重启；等价配置恢复保留启动内容，只有启动内容不同的另一配置不会被误判为重复配置。
+- 真实 Tauri/WebView2 验收使用隔离数据和 VS Code 配置。添加 Root 后为两个项目分别保存文件和 Git Graph，迁移到含应用自建 `.repojump` 的自定义位置，实际 `index.html` 聚焦和 Git Graph 目标窗口通过；已有文件窗口未切换。
+- Git Graph 生成的工作区位于实际 AppData bootstrap 的 `vscode-launches/`，没有写入 Root 或自定义偏好目录。消费后请求与回执被清理，恢复自动配置位置仍保留工作区；真实桌面重启保留两个项目的启动内容和 Recent，没有存储告警。
+- 使用真实 0.1.4 用户配置的只读副本重现历史重复 profile，实际恢复 Root、自定义位置迁移、文件聚焦、Git Graph 窗口和重启通过，原记录保留。
+- 发布版普通工具子进程启动复现跨盘原子保存错误 `os error 17`，实际目录仍为 Root；改用 Explorer 文件夹视图代理启动后，Settings 显示 `D:\code\.repojump`，保存相同设置和重启均无存储告警。真实用户状态逐字段比较确认原配置完全保留，只增加空 `vscodeStartupOverrides`。
+- 标准 `npm run package` 生成 Windows x64 release 和包含配套扩展的 NSIS 安装包。发布目录中的 VSIX 与构建输入 SHA256 一致；最终资源在全新隔离 VS Code 配置且 HTTP/S 代理不可用时离线安装通过。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.4_x64-setup.exe`，1,855,025 字节，约 1.77 MiB。SHA256：`51EE100EEA349DEF964407F9B901FD6BEA458CF337734BD2DA74410506EEB3E1`。
+
+本次未重新执行安装、升级或 Windows 10 验收；已检查真实发布版普通桌面启动、保存与重启，新增启动内容的完整窗口流程使用调试版隔离配置。历史基础功能验收见下文。
+
+## 按项目配置 VS Code 启动内容
+
+2026-10-04，在 Windows 开发机上使用实际 Tauri/WebView2 窗口、VS Code 1.140.0 和 Git Graph 1.30.0 验证。应用数据和编辑器用户配置均使用工作区内的隔离目录。
+
+- TypeScript typecheck、Vite production build、5 项 Vitest、9 项配套扩展测试、21 项 Rust 测试、Rust fmt 和 Clippy all-targets / warnings as errors 通过。
+- 从项目菜单打开启动内容弹窗，非法相对路径保存失败并保留弹窗；原生文件选择器从目标项目开始，选中 `index.html` 后保存为相对路径。弹窗中的 Enter 不触发主列表启动。
+- 实际按 Enter 后，含中文、空格、`&`、括号、分号和 `$` 的项目路径正确传给 VS Code；`index.html` 成为该项目窗口的活动编辑器。
+- 配套扩展从随应用提供的 VSIX 安装或更新；存在其他项目窗口和同一项目的文件窗口时，Git Graph 仅在本次新工作区中显示。实际 Graph webview 显示目标仓库的 `Startup fixture` 提交。
+- 请求消费后只留下工作区文件；重新加载该工作区不会再次消费请求。Windows 路径盘符和目录大小写差异另由扩展回归测试覆盖。
+- 删除启动文件后仍打开项目并返回 `startupFileUnavailable`，Recent 更新成功。卸载隔离配置中的 Git Graph 后，返回 `gitGraphUnavailable` 并保存 Recent，没有重新安装 Git Graph。
+- 启动文件删除且测试配置文件只读时，一次成功启动同时返回 `startupFileUnavailable` 和 `recentSaveFailed`；测试后恢复文件与权限。
+- 恢复默认会删除项目覆盖；两个项目分别配置文件/Git Graph 后，真实桌面进程重启保留配置与 Recent。中英文、深浅主题的配置弹窗在 680×480 布局中无横向溢出或页面错误。
+- 最终发布资源 `repojump-vscode.vsix` 在隔离 VS Code 配置且 HTTP/S 代理不可用的情况下可本地安装。标准 `npm run package` 构建 Windows x64 release 和包含配套扩展的 NSIS 安装包。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.1_x64-setup.exe`，1,830,666 字节，约 1.75 MiB。SHA256：`8A918AE92F7B18AADB6B079747C231EE6BF25EE108D08FA9CB2512ABB8EE0E24`。
+
+本次图形流程使用调试版的隔离配置；没有重新执行发布版安装、升级或 Windows 10 验收。扩展禁用、请求超时、无信任工作区和重复消费由配套扩展测试覆盖。截图、脚本和结果位于被忽略的 `.validation/`。
+
 ## 0.1.4：重复迁移导致的数据位置回退
 
 2026-10-04，在下述 Windows 11 开发机完成验证。Windows 10 未实际运行本次回归。
