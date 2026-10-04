@@ -14,6 +14,8 @@ One scan worker operates at a time. Repeated requests set a pending flag. Change
 
 Discovery enumerates a directory once. Detection combines marker rules and bounded manifest reads. It stops below a detected project, skips ignored directories and does not follow directory reparse points. Explicit roots and manual projects are canonicalized before registration.
 
+The primary add action registers a code root. A manual folder selection first checks project markers; a folder without markers offers root scanning or an explicit single-folder entry. Existing manual containers can be promoted by project ID: the service deduplicates the root and removes only the manual source in one persisted mutation, retaining favorite/recent/category metadata. Root changes reset the UI to All and clear the previous query. Search normalizes Windows path separators in memory.
+
 ## State and persistence
 
 `state.json` and `index.json` have independent schema versions. User mutations clone state, persist it, then publish the new revision. A failed write leaves the previous in-memory user state intact. Discovery only mutates cached detection fields.

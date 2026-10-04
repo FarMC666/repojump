@@ -1,6 +1,6 @@
 import type { Project, View } from './models';
 
-const normalize = (text: string) => text.normalize('NFKC').toLocaleLowerCase();
+const normalize = (text: string) => text.normalize('NFKC').replace(/\\/g, '/').toLocaleLowerCase();
 function subsequence(needle: string, haystack: string): number {
   let position = 0, first = -1, last = -1;
   for (const char of needle) {

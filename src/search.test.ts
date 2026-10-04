@@ -15,6 +15,13 @@ describe('project search and ordering', () => {
     expect(score(p, 'react missing')).toBe(-1);
     expect(score(p, 'silent-translator')).toBeGreaterThan(score(p, 'sil'));
   });
+  it('finds git-only projects and accepts either Windows path separator', () => {
+    const p = project('Silent-Translator', { path: 'D:\\code\\mods\\Silent-Translator', category: 'mods', tags: [] });
+    for (const query of ['sil', 'silent translator', 'mods', 'D:\\code\\mods', 'd:/code/mods']) {
+      expect(searchProjects([p], query, { kind: 'all' })).toEqual([p]);
+    }
+    expect(searchProjects([project('中文项目')], 'D:/代码/apps', { kind: 'all' })).toHaveLength(1);
+  });
   it('pins favorites and ranks by name relevance inside each group', () => {
     const list = [project('a-react'), project('react-core'), project('z', { favorite: true })];
     expect(searchProjects(list, 'react', { kind: 'all' }).map(p => p.name)).toEqual(['z', 'react-core', 'a-react']);

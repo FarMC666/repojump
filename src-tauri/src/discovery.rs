@@ -91,10 +91,73 @@ pub fn manual(path: &str) -> std::io::Result<ProjectRecord> {
     Ok(detect(path, &entries, true).expect("forced detection always returns a project"))
 }
 
+pub fn is_project_directory(path: &str) -> std::io::Result<bool> {
+    let path = Path::new(path);
+    let entries = DirectoryEntries::read(path)?;
+    Ok(detect(path, &entries, false).is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+    #[test]
+    fn code_root_traverses_categories_and_finds_git_only_projects() {
+        let temp = tempfile::tempdir().unwrap();
+        for dir in [
+            "apps/桌面项目/.git",
+            "web/Test Project",
+            "mods/Silent-Translator/.git",
+        ] {
+            fs::create_dir_all(temp.path().join(dir)).unwrap();
+        }
+        fs::write(temp.path().join("web/Test Project/package.json"), "{}").unwrap();
+        let root = CodeRoot {
+            id: "code".into(),
+            path: temp.path().to_string_lossy().into_owned(),
+        };
+        let mut projects = Vec::new();
+        assert!(scan(&root, 4, |event| {
+            if let ScanEvent::Project(project) = event {
+                projects.push(project);
+            }
+            true
+        }));
+        assert_eq!(projects.len(), 3);
+        assert!(!is_project_directory(&root.path).unwrap());
+        for category in ["apps", "web", "mods"] {
+            assert!(!is_project_directory(&temp.path().join(category).to_string_lossy()).unwrap());
+            assert_eq!(
+                projects
+                    .iter()
+                    .filter(
+                        |p| crate::paths::category(&p.path, std::slice::from_ref(&root)).as_deref()
+                            == Some(category)
+                    )
+                    .count(),
+                1
+            );
+        }
+        let git_only = projects
+            .iter()
+            .find(|p| p.name == "Silent-Translator")
+            .unwrap();
+        assert!(git_only.is_git);
+        assert!(git_only.tags.is_empty());
+        assert!(is_project_directory(&git_only.path).unwrap());
+        let mods = CodeRoot {
+            id: "mods".into(),
+            path: temp.path().join("mods").to_string_lossy().into_owned(),
+        };
+        let mut nested_ids = Vec::new();
+        scan(&mods, 4, |event| {
+            if let ScanEvent::Project(project) = event {
+                nested_ids.push(project.id);
+            }
+            true
+        });
+        assert_eq!(nested_ids, vec![git_only.id.clone()]);
+    }
     #[test]
     fn parent_stop_ignore_depth_and_manual_child() {
         let temp = tempfile::tempdir().unwrap();

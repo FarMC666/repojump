@@ -23,6 +23,7 @@ export function App() {
   const [categoryEdit, setCategoryEdit] = useState<Project | null>(null);
   const [categoryDraft, setCategoryDraft] = useState('');
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [folderChoice, setFolderChoice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [launching, setLaunching] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
@@ -55,7 +56,7 @@ export function App() {
         if (cancelled) { stopUpdates(); return; } cleanups.push(stopUpdates);
         const stopFocus = await api.onFocus(isQuick => {
           setQuick(isQuick); setQuery(''); setView({ kind: 'all' }); setMenu(null);
-          setSettingsOpen(false); setConfirmation(null); setCategoryEdit(null);
+          setSettingsOpen(false); setConfirmation(null); setCategoryEdit(null); setFolderChoice(null);
           requestAnimationFrame(() => searchRef.current?.focus());
         });
         if (cancelled) { stopFocus(); return; } cleanups.push(stopFocus);
@@ -90,11 +91,37 @@ export function App() {
   const run = async (operation: () => Promise<AppSnapshot | void>) => {
     try { const next = await operation(); if (next) update(next); } catch (e) { report(e); }
   };
+  const updateDiscovery = (next: AppSnapshot) => {
+    update(next); setView({ kind: 'all' }); setQuery(''); setSelectedId(null);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
+  const scanFolder = async (path: string) => {
+    const key = (value: string) => value.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+    if (snapshot?.roots.some(root => key(root.path) === key(path))) {
+      await api.rescan(); return api.bootstrap();
+    }
+    return api.addRoot(path);
+  };
   const addRoot = async () => {
-    try { const path = await api.pickDirectory(); if (typeof path === 'string') await run(() => api.addRoot(path)); } catch (e) { report(e); }
+    setPending(true);
+    try { const path = await api.pickRoot(); if (typeof path === 'string') updateDiscovery(await scanFolder(path)); }
+    catch (e) { report(e); } finally { setPending(false); }
   };
   const addProject = async () => {
-    try { const path = await api.pickDirectory(); if (typeof path === 'string') await run(() => api.addProject(path)); } catch (e) { report(e); }
+    setPending(true);
+    try {
+      const path = await api.pickDirectory();
+      if (typeof path === 'string') {
+        if (await api.inspectDirectory(path)) updateDiscovery(await api.addProject(path));
+        else setFolderChoice(path);
+      }
+    } catch (e) { report(e); } finally { setPending(false); }
+  };
+  const addChosenFolder = async (asRoot: boolean) => {
+    if (!folderChoice) return;
+    setPending(true);
+    try { updateDiscovery(await (asRoot ? scanFolder(folderChoice) : api.addProject(folderChoice))); setFolderChoice(null); }
+    catch (e) { report(e); } finally { setPending(false); }
   };
   const launch = useCallback(async (project: Project, target: LaunchTarget = 'vscode') => {
     if (launchLock.current) return;
@@ -116,12 +143,12 @@ export function App() {
       if (event.isComposing || event.keyCode === 229 || composing.current) return;
       if (event.key === 'Escape') {
         if (menu) { event.preventDefault(); setMenu(null); searchRef.current?.focus(); }
-        else if (!settingsOpen && !categoryEdit && !confirmation) {
+        else if (!settingsOpen && !categoryEdit && !confirmation && !folderChoice) {
           if (query) setQuery(''); else if (quick) { void api.hide(); setQuick(false); }
         }
         return;
       }
-      if (settingsOpen || categoryEdit || confirmation || menu) return;
+      if (settingsOpen || categoryEdit || confirmation || folderChoice || menu) return;
       if (event.ctrlKey && event.key.toLowerCase() === 'k') { event.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); return; }
       const target = event.target as HTMLElement;
       if (target !== searchRef.current && target.closest('input, select, textarea, button')) return;
@@ -132,12 +159,12 @@ export function App() {
       } else if (event.key === 'Enter' && selected && !event.repeat) { event.preventDefault(); void launch(selected); }
     };
     window.addEventListener('keydown', keyboard); return () => window.removeEventListener('keydown', keyboard);
-  }, [results, selected, selectedIndex, menu, query, quick, settingsOpen, categoryEdit, confirmation, launch]);
+  }, [results, selected, selectedIndex, menu, query, quick, settingsOpen, categoryEdit, confirmation, folderChoice, launch]);
 
   const chooseView = (next: View) => { setView(next); setSelectedId(null); setQuery(''); searchRef.current?.focus(); };
   const confirmRoot = (id: string) => {
     const path = snapshot?.roots.find(root => root.id === id)?.path ?? '';
-    setConfirmation({ title: t('removeRoot'), body: t('removeRootBody'), path, run: () => api.removeRoot(id).then(update) });
+    setConfirmation({ title: t('removeRoot'), body: t('removeRootBody'), path, run: () => api.removeRoot(id).then(updateDiscovery) });
   };
   const confirm = async () => {
     if (!confirmation) return;
@@ -150,7 +177,7 @@ export function App() {
 
   return <div className="app-shell">
     <header className="app-header"><div className="brand"><span className="brand-mark"><ArrowUpRight size={21} strokeWidth={2.8} /></span><span>RepoJump</span>{quick && <span className="quick-label">{t('quick')}</span>}</div>
-      <div className="header-actions"><button className="secondary-button" onClick={() => { void addProject(); }} disabled={!snapshot || snapshot.storageReadOnly}><Plus size={16} />{t('addProject')}</button><button className="icon-button" aria-label={t('settings')} title={t('settings')} disabled={!snapshot} onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></button></div>
+      <div className="header-actions"><button className="primary-button" title={t('addRootHint')} onClick={() => { void addRoot(); }} disabled={!snapshot || snapshot.storageReadOnly || pending}><FolderPlus size={16} />{t('addRoot')}</button><button className="secondary-button" title={t('addProjectHint')} onClick={() => { void addProject(); }} disabled={!snapshot || snapshot.storageReadOnly || pending}><Plus size={16} />{t('addProject')}</button><button className="icon-button" aria-label={t('settings')} title={t('settings')} disabled={!snapshot || pending} onClick={() => setSettingsOpen(true)}><Settings2 size={19} /></button></div>
     </header>
     <div className="search-area"><Search size={20} /><input ref={searchRef} id="project-search" type="search" autoComplete="off" spellCheck={false} aria-label={t('search')} placeholder={t('search')} value={query} onChange={e => { setQuery(e.target.value); setSelectedId(null); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} aria-controls="project-list" aria-activedescendant={selectedIndex >= 0 ? `project-${selectedIndex}` : undefined} />{query ? <button className="icon-button" aria-label={t('close')} onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X size={16} /></button> : <kbd>Ctrl K</kbd>}</div>
     <div className="workspace">
@@ -161,7 +188,7 @@ export function App() {
           return <button key={item.kind} className={`nav-item ${view.kind === item.kind ? 'active' : ''}`} aria-current={view.kind === item.kind ? 'page' : undefined} onClick={() => chooseView(item)}><Icon size={17} /><span>{t(item.kind)}</span><span className="nav-count">{count}</span></button>;
         })}
         <div className="nav-label">{t('categories')}</div>{categories.map(category => <button key={category ?? '__uncategorized'} className={`nav-item ${view.kind === 'category' && view.category === category ? 'active' : ''}`} onClick={() => chooseView({ kind: 'category', category })}><Folder size={16} /><span>{categoryName(category)}</span><span className="nav-count">{snapshot!.projects.filter(p => p.category === category).length}</span></button>)}
-      </nav><div className="sidebar-bottom"><button className="nav-item" onClick={() => { void addRoot(); }} disabled={!snapshot || snapshot.storageReadOnly}><FolderPlus size={17} /><span>{t('addRoot')}</span></button><div className="sidebar-version">LOCAL · v0.1.0</div></div>
+      </nav><div className="sidebar-bottom"><button className="nav-item" title={t('addRootHint')} onClick={() => { void addRoot(); }} disabled={!snapshot || snapshot.storageReadOnly || pending}><FolderPlus size={17} /><span>{t('addRoot')}</span></button><div className="sidebar-version">LOCAL · v0.1.1</div></div>
       </aside>
       <main className="project-main">
         <div className="list-toolbar"><div><h1>{query ? t('searching') : viewTitle}</h1><span>{results.length} {t('projects')}</span></div><button className="text-button" disabled={!snapshot} onClick={() => { void run(api.rescan); }}><RefreshCw size={14} className={snapshot?.scan.running ? 'spinning' : ''} />{t('rescan')}</button></div>
@@ -185,9 +212,10 @@ export function App() {
       <button role="menuitem" disabled={snapshot?.storageReadOnly} onClick={() => { void run(() => api.favorite(menu.project.id, !menu.project.favorite)); setMenu(null); }}><Star size={16} />{t(menu.project.favorite ? 'unfavorite' : 'favorite')}</button>
       <button role="menuitem" disabled={snapshot?.storageReadOnly} onClick={() => { setCategoryEdit(menu.project); setCategoryDraft(menu.project.category ?? ''); setMenu(null); }}><Folder size={16} />{t('editCategory')}<ChevronRight size={14} /></button>
       {menu.project.categoryOverride && <button role="menuitem" onClick={() => { void run(() => api.category(menu.project.id, null)); setMenu(null); }}><RefreshCw size={16} />{t('autoCategory')}</button>}
-      {menu.project.manual && <><hr /><button role="menuitem" className="danger" onClick={() => { const project = menu.project; setConfirmation({ title: t('removeManual'), body: t('removeManualBody'), path: project.path, run: () => api.removeProject(project.id).then(update) }); setMenu(null); }}><X size={16} />{t('removeManual')}</button></>}
+      {menu.project.manual && <><hr />{!menu.project.isGit && menu.project.tags.length === 0 && <button role="menuitem" disabled={snapshot?.storageReadOnly || menu.project.availability === 'missing'} onClick={() => { const project = menu.project; setMenu(null); void run(() => api.scanDirectory(project.id).then(next => { updateDiscovery(next); })); }}><FolderPlus size={16} />{t('scanDirectory')}</button>}<button role="menuitem" className="danger" disabled={snapshot?.storageReadOnly} onClick={() => { const project = menu.project; setConfirmation({ title: t('removeManual'), body: t('removeManualBody'), path: project.path, run: () => api.removeProject(project.id).then(update) }); setMenu(null); }}><X size={16} />{t('removeManual')}</button></>}
     </div>}
-    {settingsOpen && snapshot && <SettingsDialog snapshot={snapshot} t={t} onClose={() => setSettingsOpen(false)} update={update} addRoot={addRoot} removeRoot={confirmRoot} report={report} />}
+    {settingsOpen && snapshot && <SettingsDialog snapshot={snapshot} t={t} onClose={() => setSettingsOpen(false)} update={update} updateRoots={updateDiscovery} addRoot={addRoot} removeRoot={confirmRoot} report={report} />}
+    {folderChoice && <Dialog title={t('folderChoice')} t={t} onClose={() => { if (!pending) setFolderChoice(null); }}><form onSubmit={e => { e.preventDefault(); void addChosenFolder(true); }}><div className="dialog-body"><p>{t('folderChoiceBody')}</p><code className="data-path">{folderChoice}</code></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => { void addChosenFolder(false); }}>{t('addOnlyFolder')}</button><button className="primary-button" disabled={pending}>{t('scanDirectory')}</button></div></form></Dialog>}
     {categoryEdit && <Dialog title={t('editCategory')} t={t} onClose={() => { if (!pending) setCategoryEdit(null); }}><form onSubmit={async e => { e.preventDefault(); setPending(true); try { update(await api.category(categoryEdit.id, categoryDraft)); setCategoryEdit(null); } catch (error) { report(error); } finally { setPending(false); } }}><div className="dialog-body"><p className="dialog-project">{categoryEdit.name}</p><label htmlFor="category-name">{t('category')}</label><input id="category-name" autoFocus maxLength={64} required value={categoryDraft} onChange={e => setCategoryDraft(e.target.value)} /></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => setCategoryEdit(null)}>{t('cancel')}</button><button className="primary-button" disabled={pending}>{t('save')}</button></div></form></Dialog>}
     {confirmation && <Dialog title={confirmation.title} t={t} onClose={() => { if (!pending) setConfirmation(null); }}><div className="dialog-body"><p>{confirmation.body}</p><code className="data-path">{confirmation.path}</code></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => setConfirmation(null)}>{t('cancel')}</button><button className="danger-button" disabled={pending} onClick={() => { void confirm(); }}>{t('remove')}</button></div></Dialog>}
     {toast && createPortal(<div className={`toast ${toast.error ? 'error' : ''}`} role={toast.error ? 'alert' : 'status'}>{toast.error ? <X size={16} /> : <Check size={16} />}<span>{toast.text}</span><button className="icon-button" aria-label={t('close')} onClick={() => setToast(null)}><X size={14} /></button></div>, Array.from(document.querySelectorAll('dialog[open]')).at(-1) ?? document.body)}

@@ -9,10 +9,11 @@ import { Dialog } from './Dialog';
 interface Props {
   snapshot: AppSnapshot; t: Translate; onClose: () => void;
   update: (snapshot: AppSnapshot) => void; addRoot: () => Promise<void>;
+  updateRoots: (snapshot: AppSnapshot) => void;
   removeRoot: (id: string) => void; report: (error: unknown) => void;
 }
 
-export function SettingsDialog({ snapshot, t, onClose, update, addRoot, removeRoot, report }: Props) {
+export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addRoot, removeRoot, report }: Props) {
   const [draft, setDraft] = useState<Settings>({ ...snapshot.settings });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -39,7 +40,7 @@ export function SettingsDialog({ snapshot, t, onClose, update, addRoot, removeRo
         <section><h3>{t('roots')}</h3><p>{t('rootsBody')}</p>
           <div className="root-list">{snapshot.roots.length === 0 && <p>{t('noRoots')}</p>}{snapshot.roots.map(root => <div className="root-row" key={root.id}>
             <span title={root.path}>{root.path}</span>
-            <button type="button" className="icon-button" title={t('changeRoot')} aria-label={`${t('changeRoot')} ${root.path}`} onClick={async () => { try { const path = await api.pickDirectory(); if (typeof path === 'string') update(await api.updateRoot(root.id, path)); } catch (e) { report(e); } }}><Pencil size={15} /></button>
+            <button type="button" className="icon-button" title={t('changeRoot')} aria-label={`${t('changeRoot')} ${root.path}`} onClick={async () => { try { const path = await api.pickRoot(); if (typeof path === 'string') updateRoots(await api.updateRoot(root.id, path)); } catch (e) { report(e); } }}><Pencil size={15} /></button>
             <button type="button" className="icon-button danger" title={t('removeRoot')} aria-label={`${t('removeRoot')} ${root.path}`} onClick={() => removeRoot(root.id)}><Trash2 size={15} /></button>
           </div>)}</div>
           <button type="button" className="secondary-button" onClick={() => { void addRoot(); }} disabled={busy || snapshot.storageReadOnly}><FolderPlus size={16} />{t('addRoot')}</button>
@@ -57,7 +58,7 @@ export function SettingsDialog({ snapshot, t, onClose, update, addRoot, removeRo
           {draft.globalShortcut !== null && <div className="input-actions"><input id="shortcut" aria-label={t('shortcut')} value={draft.globalShortcut} placeholder={t('shortcutPlaceholder')} onChange={e => set('globalShortcut', e.target.value)} onKeyDown={record} /><button type="button" className="secondary-button" onClick={() => { setRecording(true); document.getElementById('shortcut')?.focus(); }}>{t(recording ? 'recording' : 'capture')}</button></div>}
           <p>{t('shortcutHint')}</p><label className="check-label"><input type="checkbox" checked={draft.closeToTray} onChange={e => set('closeToTray', e.target.checked)} />{t('closeToTray')}</label>
         </section>
-        <section><h3>{t('localData')}</h3><p>{t('localDataHint')}</p><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump 0.1.0</p></section>
+        <section><h3>{t('localData')}</h3><p>{t('localDataHint')}</p><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump 0.1.1</p></section>
       </div>
       <div className="dialog-footer">{error !== null && <p className="form-error" role="alert">{errorText(error, t)}</p>}<button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="primary-button" disabled={busy || snapshot.storageReadOnly}>{t('save')}</button></div>
     </form>

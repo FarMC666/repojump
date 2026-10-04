@@ -1,5 +1,7 @@
 use crate::{
+    discovery,
     model::*,
+    paths,
     service::{self, AppState},
 };
 use tauri::{AppHandle, Manager, State};
@@ -11,6 +13,24 @@ pub fn bootstrap(state: State<'_, AppState>) -> AppSnapshot {
 #[tauri::command]
 pub fn rescan(app: AppHandle) {
     service::request_scan(&app);
+}
+#[tauri::command]
+pub async fn inspect_directory(path: String) -> AppResult<bool> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = paths::directory(&path)?;
+        discovery::is_project_directory(&path.to_string_lossy())
+            .map_err(|e| AppError::new("directoryUnavailable", e.to_string()))
+    })
+    .await
+    .map_err(|e| AppError::new("directoryUnavailable", e.to_string()))?
+}
+#[tauri::command]
+pub fn scan_manual_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<AppSnapshot> {
+    state.scan_manual_directory(&app, &id)
 }
 #[tauri::command]
 pub fn add_root(

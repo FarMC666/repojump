@@ -1,4 +1,23 @@
-# RepoJump 0.1.0 验收记录
+# RepoJump 验收记录
+
+## 0.1.1：分类目录发现与搜索回归
+
+2026-10-04，在下述 Windows 11 开发机上完成验证。Windows 10 未实际运行本次回归。
+
+- TypeScript typecheck、Vite production build、5 项 Vitest、15 项 Rust 测试、Rust fmt 和 Clippy all-targets / warnings as errors 通过。
+- 通过真实原生 Root 选择器添加 `D:\code`，发现 9 个项目，其中 `mods` 下的两个 Git 项目均被识别。选择 `mods` 作为 Root 发现这两个项目；通过设置切换回 `code` 恢复全部 9 个项目。
+- 添加 Root 前停留在收藏视图并输入无匹配查询；添加成功后自动切回全部项目并清空查询，项目可见。
+- 手动选择无标记的分类目录时出现扫描/仅添加选择。选择扫描已存在的 Root 不产生重复；将已有手动目录转为 Root 时保留收藏与分类覆盖。最近记录保留另由 Rust 测试覆盖。
+- 手动添加已有 Root 覆盖的 Git 项目只增加手动来源，不重复显示。Git 信息不参与项目发现是否成功的判断。
+- 实际安装后的发布版搜索 `sil` 命中 Silent-Translator；`D:/code/mods` 命中两个 Git 项目。独立测试配置中确认 `D:\code\mods` 与 `D:/code/mods` 查询结果一致。
+- 检查中英文、深浅主题和 680×480 布局，没有页面横向溢出或 WebView 页面错误。
+- 0.1.0 → 0.1.1 NSIS 覆盖升级退出码 0；升级前后用户配置 SHA256 一致。重新打开实际安装程序后保留原有根目录、手动条目、最近记录及分类覆盖，并显示新增 Root 发现的项目。实际用户列表为 9 个自动发现项目及 2 个原有手动目录条目。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.1_x64-setup.exe`，1,791,910 字节，约 1.71 MiB。SHA256：`3B78F4DB7806321FFEA87150ABDC6774CEE5734DCD0A2A7C18B5746A1E16BD72`。
+
+本次没有重新验证 VS Code、终端、Explorer 等未修改的启动逻辑；其基础验收记录如下。
+
+## 0.1.0：基础验收
 
 验证日期：2026-10-04。开发机为 Windows 11 专业工作站版 x64，系统版本 `10.0.26200`，WebView2 `154.0.4258.53`。Windows 10 未实际运行验收。
 

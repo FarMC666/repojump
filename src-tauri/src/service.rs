@@ -77,6 +77,22 @@ fn merge(index: &mut IndexCache, mut project: ProjectRecord) {
     index.projects.insert(project.id.clone(), project);
 }
 
+fn promote_manual_source(user: &mut UserData, path: String) {
+    let id = paths::identity(&path);
+    if !user
+        .roots
+        .iter()
+        .any(|root| paths::identity(&root.path) == id)
+    {
+        user.roots.push(CodeRoot {
+            id: uuid::Uuid::new_v4().to_string(),
+            path,
+        });
+    }
+    user.manual_projects
+        .retain(|manual| paths::identity(manual) != id);
+}
+
 impl AppState {
     pub fn new(directory: PathBuf) -> Self {
         let (storage, user, mut index, warnings) = Storage::load(directory);
@@ -232,6 +248,25 @@ impl AppState {
     pub fn remove_manual(&self, app: &AppHandle, id: String) -> AppResult<AppSnapshot> {
         self.mutate(app, true, |user, _| {
             user.manual_projects.retain(|p| paths::identity(p) != id);
+            Ok(())
+        })
+    }
+
+    pub fn scan_manual_directory(&self, app: &AppHandle, id: &str) -> AppResult<AppSnapshot> {
+        let path = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .index
+                .projects
+                .get(id)
+                .filter(|project| project.manual)
+                .ok_or_else(|| AppError::new("projectNotFound", id))?
+                .path
+                .clone()
+        };
+        let path = paths::directory(&path)?.to_string_lossy().into_owned();
+        self.mutate(app, true, |user, _| {
+            promote_manual_source(user, path);
             Ok(())
         })
     }
@@ -566,6 +601,44 @@ fn scan_worker(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn converting_a_manual_container_to_a_root_preserves_user_metadata_and_sources() {
+        let path = r"D:\代码\My Code";
+        let id = paths::identity(path);
+        let mut user = UserData::default();
+        user.manual_projects
+            .extend([path.into(), r"D:\other\manual".into()]);
+        user.favorites.insert(id.clone());
+        user.recent.insert(id.clone(), 123);
+        user.category_overrides
+            .insert(id.clone(), "Projects".into());
+        promote_manual_source(&mut user, path.into());
+        assert_eq!(user.roots.len(), 1);
+        assert_eq!(user.manual_projects, vec![r"D:\other\manual"]);
+        assert!(user.favorites.contains(&id));
+        assert_eq!(user.recent[&id], 123);
+        assert_eq!(user.category_overrides[&id], "Projects");
+        let root_id = user.roots[0].id.clone();
+        promote_manual_source(&mut user, r"d:\代码\my code".into());
+        assert_eq!(user.roots.len(), 1);
+        assert_eq!(user.roots[0].id, root_id);
+        let mut index = IndexCache::default();
+        index.projects.insert(
+            id.clone(),
+            ProjectRecord {
+                id: id.clone(),
+                path: path.into(),
+                name: "My Code".into(),
+                tags: vec![],
+                is_git: false,
+                root_ids: BTreeSet::new(),
+                manual: true,
+                availability: Availability::Available,
+            },
+        );
+        reconcile(&user, &mut index);
+        assert!(!index.projects.contains_key(&id));
+    }
     #[test]
     fn root_sources_manual_and_user_metadata_survive_reconciliation() {
         let temp = tempfile::tempdir().unwrap();

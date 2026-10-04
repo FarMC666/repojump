@@ -2,7 +2,10 @@ import type { AppError, Settings } from './models';
 
 const en = {
   all: 'All projects', favorites: 'Favorites', recent: 'Recent', categories: 'Categories', uncategorized: 'Uncategorized',
-  search: 'Search projects…', settings: 'Settings', addRoot: 'Add code root', addProject: 'Add project', rescan: 'Rescan',
+  search: 'Search projects…', settings: 'Settings', addRoot: 'Add code root', addProject: 'Add single project', rescan: 'Rescan',
+  addRootHint: 'Scan projects inside a folder, such as D:\\code.', addProjectHint: 'Add one project folder, without scanning its children.',
+  folderChoice: 'Scan projects inside this folder?', folderChoiceBody: 'No project markers were found in this folder. Scan it as a code root to discover the projects inside, or add only this folder as a project.',
+  scanDirectory: 'Scan projects inside', addOnlyFolder: 'Add only this folder',
   projects: 'projects', searching: 'Search results', scanning: 'Scanning', ready: 'Ready', visited: 'folders checked',
   welcome: 'Your projects, one shortcut away.', welcomeBody: 'Add a folder that contains your code. RepoJump will find your projects automatically.',
   noResults: 'No matching projects', noResultsBody: 'Try a project name, path, category or technology.',
@@ -15,7 +18,7 @@ const en = {
   removeManual: 'Remove manual entry', removeManualBody: 'Only the manual entry is removed. The project folder is kept. Projects discovered by a root remain in the list.',
   manual: 'Manually added', missing: 'Folder missing', unknown: 'Availability unknown', git: 'Git repository', branch: 'Branch', clean: 'Working tree clean', dirty: 'Uncommitted changes', gitUnknown: 'Git information unavailable',
   lastOpened: 'Last opened', never: 'Not opened yet', open: 'Open', cancel: 'Cancel', save: 'Save', remove: 'Remove', close: 'Close',
-  roots: 'Code roots', rootsBody: 'RepoJump scans these folders. Finding a project stops recursion into its children.', noRoots: 'No code roots yet.',
+  roots: 'Code roots', rootsBody: 'Choose a folder such as D:\\code. RepoJump traverses category folders such as apps, web and mods to find projects inside. Finding a project stops recursion into its children.', noRoots: 'No code roots yet.',
   changeRoot: 'Change root folder', removeRoot: 'Remove root', removeRootBody: 'Remove this root from RepoJump? Its project folders stay untouched. Manual entries and other roots remain.',
   appearance: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', system: 'Follow system', language: 'Language',
   discovery: 'Discovery', scanDepth: 'Maximum scan depth', depthHint: 'The root is depth 0. Default: 4. Nested projects can be added manually.',
@@ -36,7 +39,10 @@ const en = {
 type Key = keyof typeof en;
 const zh: Record<Key, string> = {
   all: '全部项目', favorites: '收藏', recent: '最近打开', categories: '分类', uncategorized: '未分类',
-  search: '搜索项目…', settings: '设置', addRoot: '添加代码根目录', addProject: '添加项目', rescan: '重新扫描',
+  search: '搜索项目…', settings: '设置', addRoot: '添加代码根目录', addProject: '手动添加项目', rescan: '重新扫描',
+  addRootHint: '选择 D:\\code 等目录，自动扫描其中的项目。', addProjectHint: '仅添加选中的项目文件夹，不扫描子目录。',
+  folderChoice: '扫描此目录中的项目？', folderChoiceBody: '此目录未检测到项目标记。添加为代码根目录可以自动发现其中的项目；也可以仅将此文件夹作为项目添加。',
+  scanDirectory: '扫描目录中的项目', addOnlyFolder: '仅添加此文件夹',
   projects: '个项目', searching: '搜索结果', scanning: '正在扫描', ready: '就绪', visited: '个目录已检查',
   welcome: '更快找到你的下一个项目。', welcomeBody: '添加存放代码的根目录，RepoJump 会自动发现其中的项目。',
   noResults: '没有匹配的项目', noResultsBody: '试试项目名称、路径、分类或技术类型。',
@@ -49,7 +55,7 @@ const zh: Record<Key, string> = {
   removeManual: '移除手动添加记录', removeManualBody: '只移除手动添加记录，不操作项目文件夹。由代码根目录发现的项目仍保留在列表中。',
   manual: '手动添加', missing: '目录已不存在', unknown: '目录状态未知', git: 'Git 仓库', branch: '分支', clean: '工作区干净', dirty: '有未提交的修改', gitUnknown: 'Git 信息暂不可用',
   lastOpened: '最近打开', never: '尚未打开', open: '打开', cancel: '取消', save: '保存', remove: '移除', close: '关闭',
-  roots: '代码根目录', rootsBody: '扫描这些目录；发现项目后，不再递归扫描它的子目录。', noRoots: '尚未添加代码根目录。',
+  roots: '代码根目录', rootsBody: '选择 D:\\code 等目录，会继续遍历 apps、web、mods 等分类目录，发现其中的项目。识别到具体项目后停止深入。', noRoots: '尚未添加代码根目录。',
   changeRoot: '修改根目录', removeRoot: '移除根目录', removeRootBody: '从 RepoJump 移除此根目录？项目文件夹不会被修改，手动添加记录和其他根目录仍然保留。',
   appearance: '外观', theme: '主题', dark: '深色', light: '浅色', system: '跟随系统', language: '语言',
   discovery: '项目发现', scanDepth: '最大扫描深度', depthHint: '根目录为第 0 层，默认扫描至第 4 层。嵌套项目可手动添加。',

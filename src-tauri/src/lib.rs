@@ -117,6 +117,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
             commands::rescan,
+            commands::inspect_directory,
+            commands::scan_manual_directory,
             commands::add_root,
             commands::update_root,
             commands::remove_root,

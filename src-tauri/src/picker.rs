@@ -5,6 +5,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub enum PickerKind {
     Directory,
+    CodeRoot,
     Code,
 }
 
@@ -43,7 +44,24 @@ fn select(kind: PickerKind) -> AppResult<Option<String>> {
         let mut options =
             dialog.GetOptions().map_err(failure)? | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST;
         match kind {
-            PickerKind::Directory => options |= FOS_PICKFOLDERS,
+            PickerKind::Directory => {
+                options |= FOS_PICKFOLDERS;
+                dialog
+                    .SetTitle(w!("Choose one project / 选择单个项目文件夹"))
+                    .map_err(failure)?;
+                dialog
+                    .SetOkButtonLabel(w!("Add project / 添加项目"))
+                    .map_err(failure)?;
+            }
+            PickerKind::CodeRoot => {
+                options |= FOS_PICKFOLDERS;
+                dialog
+                    .SetTitle(w!("Scan projects in this folder / 选择代码根目录"))
+                    .map_err(failure)?;
+                dialog
+                    .SetOkButtonLabel(w!("Scan folder / 扫描目录"))
+                    .map_err(failure)?;
+            }
             PickerKind::Code => {
                 options |= FOS_FILEMUSTEXIST;
                 dialog
