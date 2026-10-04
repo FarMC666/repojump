@@ -41,6 +41,14 @@ RepoJump 使用 Tauri 2、React、TypeScript 和 Vite，第一版面向 Windows 
 
 ## 打开方式
 
+通过项目菜单中的“VS Code 启动内容”，可以为每个项目分别保存以下选项。Enter、双击和打开按钮都会应用该项目的配置。
+
+- **默认**：使用 VS Code 原有的启动行为。
+- **指定文件**：输入项目内文件的相对路径（例如 `index.html` 或 `src/main.ts`），也可以通过原生文件选择器选择。打开项目时同时打开并聚焦该文件。只支持项目内已存在的文件。
+- **Git Graph**：打开项目后显示 Git Graph 视图。需要已安装并启用 `mhutchie.git-graph`；首次使用时，RepoJump 会从随应用提供的本地 VSIX 安装配套扩展。此模式使用应用数据目录中的独立工作区文件，VS Code 会显示为工作区窗口，不修改项目文件。只有本次 RepoJump 请求会触发自动显示，手动打开项目或恢复已消费的工作区不会重复执行。
+
+文件失效、扩展安装失败、Git Graph 不可用或响应超时，项目仍会打开并显示提示。原配置保留，方便修复；最近打开记录仍会保存。恢复“默认”会移除此项目的启动内容覆盖。
+
 - VS Code：使用 `Code.exe` 的 `--new-window` 参数，项目路径作为独立参数传递。优先使用设置中的路径，其次解析 PATH 中的 `code`，再检查注册表和常见安装位置。支持空格、中文及特殊字符路径。
 - 终端：自动模式优先 Windows Terminal，回退至 PowerShell。PowerShell 通过进程工作目录进入项目，使用 `-NoProfile -NoExit`，不把项目路径插入脚本。带分号的路径走 PowerShell，避免 Windows Terminal 的命令分隔歧义。
 - 仓库网页：读取 `origin`，支持 HTTP/S、标准 SSH、scp 风格 URL 和 Azure DevOps SSH 地址转换。不依赖 GitHub，也不执行网络 Git 操作。
@@ -51,9 +59,10 @@ Git 分支、修改状态和 origin 按需读取并短时缓存，需要本机�
 
 位置可在设置中查看，默认是 `%LOCALAPPDATA%\com.farmc.repojump`。
 
-- `state.json`：根目录、手动项目、收藏、最近记录、分类覆盖和设置。
+- `state.json`：根目录、手动项目、收藏、最近记录、分类与 VS Code 启动内容覆盖和设置。
 - `state.json.bak`：上一个有效配置，用于恢复。
 - `index.json`：可重建的项目发现缓存。
+- `vscode-launches/`：Git Graph 模式的工作区文件与一次性启动请求。请求在消费或过期后清理，工作区文件保留以支持 VS Code 恢复；这些工作区不会加入 VS Code 最近打开列表。
 
 配置通过原子替换保存，带版本号。配置损坏时保留原文件，并优先从备份恢复；没有有效备份时明确提示并使用新配置。来自更新版本的配置会以只读方式保护，不覆盖原文件。应用升级使用固定数据目录，安装程序不清空这些数据。
 
@@ -81,3 +90,5 @@ npm run package
 安装包位于 `src-tauri/target/release/bundle/nsis/`，打包工具缓存在 `src-tauri/target/.tauri/`。使用当前用户安装，不需要管理员权限。缺少 WebView2 时安装程序会下载其引导程序，因此首次安装可能需要联网；安装后核心功能不依赖网络。仓库不包含代码签名证书，默认构建的安装包未签名。[Tauri Windows 安装包说明](https://v2.tauri.app/distribute/windows-installer/)
 
 模块边界见 [架构说明](docs/architecture.md)，实际检查与桌面验收范围见 [验收记录](docs/validation.md)。
+
+配套扩展源代码位于 `vscode-helper/`。`npm run build:helper` 使用 Node.js 内置库生成 `src-tauri/resources/repojump-vscode.vsix`，无需额外打包依赖。开发启动、生产构建和直接 Cargo 构建都会生成此资源，安装包会包含它。

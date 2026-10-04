@@ -9,6 +9,7 @@ mod picker;
 mod service;
 mod settings;
 pub mod storage;
+mod vscode_startup;
 
 use service::AppState;
 use tauri::{
@@ -126,6 +127,8 @@ pub fn run() {
             commands::remove_manual_project,
             commands::set_favorite,
             commands::set_category_override,
+            commands::set_vscode_startup,
+            commands::pick_project_file,
             commands::update_settings,
             commands::copy_project_path,
             commands::get_git_metadata,

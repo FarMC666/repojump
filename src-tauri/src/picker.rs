@@ -1,5 +1,6 @@
 use crate::model::{AppError, AppResult};
 use serde::Deserialize;
+use std::path::PathBuf;
 
 #[derive(Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
@@ -7,20 +8,22 @@ pub enum PickerKind {
     Directory,
     CodeRoot,
     Code,
+    ProjectFile,
 }
 
 #[cfg(windows)]
-fn select(kind: PickerKind) -> AppResult<Option<String>> {
+fn select(kind: PickerKind, initial_folder: Option<PathBuf>) -> AppResult<Option<String>> {
     use windows::{
-        core::w,
+        core::{w, HSTRING},
         Win32::{
             System::Com::{
                 CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize,
                 CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
             },
             UI::Shell::{
-                Common::COMDLG_FILTERSPEC, FileOpenDialog, IFileOpenDialog, FOS_FILEMUSTEXIST,
-                FOS_FORCEFILESYSTEM, FOS_PATHMUSTEXIST, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
+                Common::COMDLG_FILTERSPEC, FileOpenDialog, IFileOpenDialog, IShellItem,
+                SHCreateItemFromParsingName, FOS_FILEMUSTEXIST, FOS_FORCEFILESYSTEM,
+                FOS_PATHMUSTEXIST, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
             },
         },
     };
@@ -71,6 +74,18 @@ fn select(kind: PickerKind) -> AppResult<Option<String>> {
                     }])
                     .map_err(failure)?;
             }
+            PickerKind::ProjectFile => {
+                options |= FOS_FILEMUSTEXIST;
+                dialog
+                    .SetTitle(w!("Choose startup file / 选择启动文件"))
+                    .map_err(failure)?;
+            }
+        }
+        if let Some(folder) = initial_folder {
+            let item: IShellItem =
+                SHCreateItemFromParsingName(&HSTRING::from(folder.as_os_str()), None)
+                    .map_err(failure)?;
+            dialog.SetFolder(&item).map_err(failure)?;
         }
         dialog.SetOptions(options).map_err(failure)?;
         // Keep the worker's dialog independent of the WebView's UI thread.
@@ -91,6 +106,10 @@ fn select(kind: PickerKind) -> AppResult<Option<String>> {
 
 #[tauri::command]
 pub async fn pick_path(kind: PickerKind) -> AppResult<Option<String>> {
+    pick(kind, None).await
+}
+
+pub async fn pick(kind: PickerKind, initial_folder: Option<PathBuf>) -> AppResult<Option<String>> {
     #[cfg(windows)]
     {
         static PICKER: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -98,7 +117,7 @@ pub async fn pick_path(kind: PickerKind) -> AppResult<Option<String>> {
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let result = match PICKER.try_lock() {
-                Ok(_guard) => select(kind),
+                Ok(_guard) => select(kind, initial_folder),
                 Err(_) => Ok(None),
             };
             let _ = sender.send(result);
@@ -110,7 +129,7 @@ pub async fn pick_path(kind: PickerKind) -> AppResult<Option<String>> {
     }
     #[cfg(not(windows))]
     {
-        let _ = kind;
+        let _ = (kind, initial_folder);
         Err(AppError::new("pickerFailed", "RepoJump v1 targets Windows"))
     }
 }

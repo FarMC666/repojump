@@ -4,7 +4,7 @@
   "version": "0.1.1",
   "identifier": "com.farmc.repojump",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run build:helper && npm run dev",
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
@@ -28,6 +28,7 @@
     "active": true,
     "useLocalToolsDir": true,
     "targets": ["nsis"],
+    "resources": { "resources/repojump-vscode.vsix": "repojump-vscode.vsix" },
     "icon": ["icons/icon.ico", "icons/32x32.png", "icons/128x128.png"],
     "shortDescription": "Find and open your local development projects",
     "category": "DeveloperTool",
