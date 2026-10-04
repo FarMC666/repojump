@@ -159,37 +159,6 @@ impl Storage {
 mod tests {
     use super::*;
     #[test]
-    fn startup_overrides_load_legacy_data_and_round_trip_independently() {
-        use crate::model::VscodeStartup;
-        let legacy = decode_user(br#"{"schemaVersion":1,"favorites":["one"]}"#).unwrap();
-        assert!(legacy.vscode_startup_overrides.is_empty());
-        assert!(legacy.favorites.contains("one"));
-        let temp = tempfile::tempdir().unwrap();
-        let (store, mut user, _, _) = Storage::load(temp.path().into());
-        user.vscode_startup_overrides.insert(
-            "one".into(),
-            VscodeStartup::File {
-                path: "src/index.html".into(),
-            },
-        );
-        user.vscode_startup_overrides
-            .insert("two".into(), VscodeStartup::GitGraph);
-        store.save_user(&user).unwrap();
-        let (_, restored, _, _) = Storage::load(temp.path().into());
-        assert_eq!(
-            restored.vscode_startup_overrides,
-            user.vscode_startup_overrides
-        );
-        user.vscode_startup_overrides.remove("one");
-        store.save_user(&user).unwrap();
-        let (_, restored, _, _) = Storage::load(temp.path().into());
-        assert!(!restored.vscode_startup_overrides.contains_key("one"));
-        assert_eq!(
-            restored.vscode_startup_overrides["two"],
-            VscodeStartup::GitGraph
-        );
-    }
-    #[test]
     fn persistence_resolves_the_actual_parent_before_atomic_replacement() {
         let temp = tempfile::tempdir().unwrap();
         let logical = temp.path().join("data").join("..").join("data");

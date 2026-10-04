@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "build": "npm run build:helper && npm run typecheck && vite build",
-    "build:helper": "node scripts/build-helper.mjs",
-    "test": "vitest run src && node --test vscode-helper/startup.test.cjs",
+    "build": "npm run typecheck && vite build",
+    "test": "vitest run",
     "tauri": "tauri",
     "desktop": "tauri dev",
     "package": "tauri build --bundles nsis"

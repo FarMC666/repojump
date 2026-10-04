@@ -143,7 +143,6 @@ fn equivalent_preferences(left: &UserData, right: &UserData) -> bool {
         && left.favorites == right.favorites
         && left.recent == right.recent
         && left.category_overrides == right.category_overrides
-        && left.vscode_startup_overrides == right.vscode_startup_overrides
         && left.settings == right.settings
 }
 
@@ -173,11 +172,6 @@ fn check_destination(store: &Storage, user: &UserData) -> AppResult<()> {
 }
 
 impl StorageManager {
-    /// Runtime launch files stay in app data when preferences move to a code root.
-    pub fn bootstrap_directory(&self) -> &Path {
-        &self.bootstrap
-    }
-
     pub fn load(bootstrap: PathBuf) -> (Self, UserData, IndexCache, Vec<AppError>) {
         let _ = fs::create_dir_all(&bootstrap);
         let legacy = bootstrap.clone();
@@ -463,7 +457,7 @@ impl StorageManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{CodeRoot, VscodeStartup};
+    use crate::model::CodeRoot;
 
     #[test]
     fn separate_appdata_views_reuse_equivalent_root_data_and_its_identities() {
@@ -478,8 +472,6 @@ mod tests {
         });
         user.favorites.insert("project".into());
         user.recent.insert("project".into(), 123);
-        user.vscode_startup_overrides
-            .insert("project".into(), VscodeStartup::GitGraph);
         desktop.commit(&user, &index, false).unwrap();
         let mut existing = user.clone();
         existing.profile_id = "original-profile".into();
@@ -495,10 +487,6 @@ mod tests {
         assert_eq!(restored.roots, existing.roots);
         assert!(restored.favorites.contains("project"));
         assert_eq!(restored.recent["project"], 123);
-        assert_eq!(
-            restored.vscode_startup_overrides,
-            user.vscode_startup_overrides
-        );
         let recovery =
             decode_user(&fs::read(base.join(FOLDER).join("state.json")).unwrap()).unwrap();
         assert_eq!(recovery.profile_id, existing.profile_id);
@@ -574,47 +562,6 @@ mod tests {
     }
 
     #[test]
-    fn different_startup_preferences_do_not_adopt_another_profile() {
-        let temp = tempfile::tempdir().unwrap();
-        let base = temp.path().join("appdata");
-        let root = temp.path().join("code");
-        fs::create_dir(&root).unwrap();
-        let (mut manager, mut user, index, _) = StorageManager::load(base.clone());
-        user.roots.push(CodeRoot {
-            id: "root".into(),
-            path: root.to_string_lossy().into_owned(),
-        });
-        user.vscode_startup_overrides
-            .insert("project".into(), VscodeStartup::GitGraph);
-        manager.commit(&user, &index, false).unwrap();
-        let mut other = user.clone();
-        other.profile_id = "another-profile".into();
-        other.vscode_startup_overrides.insert(
-            "project".into(),
-            VscodeStartup::File {
-                path: "index.html".into(),
-            },
-        );
-        let destination = prepare(&root.join(FOLDER)).unwrap();
-        destination.save_user(&other).unwrap();
-        let original = fs::read(destination.directory.join("state.json")).unwrap();
-
-        let (manager, restored, _, warnings) = StorageManager::load(base.clone());
-        assert!(warnings
-            .iter()
-            .any(|warning| warning.code == "storageLocationFallback"));
-        assert_eq!(manager.active.directory, base.join(FOLDER));
-        assert_eq!(
-            restored.vscode_startup_overrides,
-            user.vscode_startup_overrides
-        );
-        assert_eq!(
-            fs::read(destination.directory.join("state.json")).unwrap(),
-            original
-        );
-    }
-
-    #[test]
     fn recovering_a_stale_locator_does_not_keep_a_false_fallback_warning() {
         let temp = tempfile::tempdir().unwrap();
         let base = temp.path().join("appdata");
@@ -649,16 +596,6 @@ mod tests {
         let (mut manager, mut user, index, warnings) = StorageManager::load(base.clone());
         assert!(warnings.is_empty());
         assert_eq!(manager.active.directory, base.join(FOLDER));
-        let bootstrap = manager.bootstrap_directory().to_path_buf();
-        user.vscode_startup_overrides.insert(
-            "project".into(),
-            VscodeStartup::File {
-                path: "src/首页 & (index); $.html".into(),
-            },
-        );
-        user.vscode_startup_overrides
-            .insert("other".into(), VscodeStartup::GitGraph);
-        let startup = user.vscode_startup_overrides.clone();
         user.favorites.insert("project".into());
         user.recent.insert("project".into(), 123);
         user.roots.push(CodeRoot {
@@ -690,15 +627,10 @@ mod tests {
         assert_eq!(manager.active.directory, custom.join(FOLDER));
         assert!(user.favorites.contains("project"));
         assert_eq!(user.recent["project"], 123);
-        assert_eq!(user.vscode_startup_overrides, startup);
-        assert_eq!(manager.bootstrap_directory(), bootstrap);
         user.settings.data_location = None;
         user.roots.clear();
         manager.commit(&user, &index, true).unwrap();
         assert_eq!(manager.active.directory, base.join(FOLDER));
-        let (_, restored, _, warnings) = StorageManager::load(base);
-        assert!(warnings.is_empty());
-        assert_eq!(restored.vscode_startup_overrides, startup);
         assert!(root.join(FOLDER).join("state.json").is_file());
     }
 

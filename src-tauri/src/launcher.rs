@@ -76,44 +76,24 @@ pub fn vscode(settings: &Settings) -> AppResult<PathBuf> {
     Err(AppError::new("vscodeNotFound", ""))
 }
 
-pub fn vscode_command(executable: &Path, project: &Path, file: Option<&Path>) -> Command {
+pub fn vscode_command(executable: &Path, project: &Path) -> Command {
     let mut command = Command::new(executable);
     command
         .arg("--new-window")
         .arg(project)
         .env_remove("ELECTRON_RUN_AS_NODE")
         .env_remove("VSCODE_DEV");
-    if let Some(file) = file {
-        command.arg(file);
-    }
-    #[cfg(debug_assertions)]
-    apply_test_profile(&mut command);
     command
 }
 
-// Native QA must not install extensions into, or launch windows in, the user's editor profile.
-#[cfg(debug_assertions)]
-pub(crate) fn apply_test_profile(command: &mut Command) {
-    if let Some(directory) = env::var_os("REPOJUMP_TEST_VSCODE_PROFILE")
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-    {
-        command
-            .arg("--user-data-dir")
-            .arg(directory.join("user-data"))
-            .arg("--extensions-dir")
-            .arg(directory.join("extensions"));
-    }
-}
-
-pub(crate) fn spawn(mut command: Command) -> AppResult<Child> {
+fn spawn(mut command: Command) -> AppResult<Child> {
     command
         .spawn()
         .map_err(|e| AppError::new("launchFailed", e.to_string()))
 }
 
-pub fn open_vscode(path: &Path, settings: &Settings, file: Option<&Path>) -> AppResult<()> {
-    spawn(vscode_command(&vscode(settings)?, path, file)).map(|_| ())
+pub fn open_vscode(path: &Path, settings: &Settings) -> AppResult<()> {
+    spawn(vscode_command(&vscode(settings)?, path)).map(|_| ())
 }
 
 pub fn open_terminal(path: &Path, settings: &Settings) -> AppResult<()> {
@@ -161,7 +141,7 @@ mod tests {
             r"D:\代码\测试项目",
             r"D:\code\a & (b); $c",
         ] {
-            let command = vscode_command(Path::new("Code.exe"), Path::new(path), None);
+            let command = vscode_command(Path::new("Code.exe"), Path::new(path));
             let args: Vec<_> = command.get_args().collect();
             assert_eq!(
                 args,
@@ -170,11 +150,6 @@ mod tests {
                     std::ffi::OsStr::new(path)
                 ]
             );
-            let file = Path::new(path).join("页面 & (index); $.html");
-            let command = vscode_command(Path::new("Code.exe"), Path::new(path), Some(&file));
-            let args: Vec<_> = command.get_args().collect();
-            assert_eq!(args.len(), 3);
-            assert_eq!(args[2], file.as_os_str());
         }
     }
 }

@@ -79,14 +79,6 @@ composer.json      Gemfile
 
 **VS Code：**使用 `Code.exe` 的 `--new-window` 参数，项目路径作为独立参数传递。优先使用设置中指定的可执行文件，其次检查 PATH、注册表和常见安装位置。自动检测失败时，可在设置中指定路径。空格、中文和 shell 特殊字符均作为路径的一部分处理。
 
-在项目菜单的**VS Code 启动内容**中，每个项目可以保存一个选项。Enter、双击和打开按钮统一应用该配置：
-
-- **默认**：使用 VS Code 原有的启动行为。
-- **指定文件**：输入项目内文件的相对路径（例如 `index.html`），或使用原生文件选择器。文件必须已存在且位于项目内，启动后成为活动编辑器。
-- **Git Graph**：在本次新开的项目窗口显示 Git Graph。需要预先安装并启用 `mhutchie.git-graph`；RepoJump 首次使用时自动安装随应用提供的配套扩展。此模式使用应用数据目录中的独立工作区，不修改项目文件。只有本次 RepoJump 请求会触发显示，手动打开项目或恢复已消费的工作区不会重复执行。
-
-文件失效、配套扩展安装失败、Git Graph 不可用或超时，仍保留打开的项目窗口并提示。原配置保留，Recent 仍会保存；恢复默认会删除该项目的覆盖。
-
 **终端：**自动模式优先 Windows Terminal，其次 PowerShell。PowerShell 通过进程工作目录进入项目，使用 `-NoProfile -NoExit`，不会将项目路径拼入 shell 脚本。包含分号的路径使用 PowerShell，避免 Windows Terminal 命令分隔符产生歧义。
 
 **仓库网页：**项目菜单读取 Git 的 `origin`，将支持的 HTTP/S、SSH 和 scp 风格地址转换为浏览器链接，并保留原仓库主机。支持 GitHub、GitLab 等主机，并提供 Azure DevOps SSH 地址的专门转换。
@@ -114,13 +106,11 @@ D:\code\.repojump\
 
 在**设置 → 本地数据**中选择**自定义目录**，指定父目录并保存。RepoJump 在其中创建 `.repojump`，迁移根目录、手动条目、收藏、最近记录、设置、分类覆盖和缓存。**当前数据目录**显示实际使用的路径。恢复自动位置后重新使用第一个根目录；取消设置不会切换位置。
 
-- `state.json`：用户状态，包含按项目保存的 VS Code 启动内容覆盖、配置版本和配置标识。
+- `state.json`：用户状态，包含配置版本和配置标识。
 - `state.json.bak`：上一个有效配置。
 - `index.json`：可重建的项目缓存。
 
 原来的 `%LOCALAPPDATA%\com.farmc.repojump` 目录保留小型位置记录 `storage-location.json` 和一份 `.repojump` 恢复副本，让代码盘断开时应用仍能启动。在回退期间保存的更改，会在配置的数据盘恢复并重启 RepoJump 后保留。WebView2 自身的运行时数据仍位于系统应用数据目录。
-
-Git Graph 的工作区始终保存在该应用数据目录的 `vscode-launches/` 下，不随用户配置迁移。请求与回执在消费或过期后清理；工作区文件保留供窗口恢复，并且不会加入 VS Code 最近打开列表。
 
 迁移先写入新数据，再切换位置记录，并保留旧副本。目标目录属于其他配置时会拒绝迁移。旧版仅使用 AppData 的配置会自动迁移。配置通过原子替换保存；损坏文件会保留，有效备份会恢复并显示提示。不支持的更新版本配置受到写入保护。安装程序升级保留应用数据。
 
@@ -152,5 +142,3 @@ npm run package
 Windows x64 NSIS 安装包输出到 `src-tauri/target/release/bundle/nsis/`，打包工具缓存在 `src-tauri/target/.tauri/`。使用当前用户安装，无需管理员权限。缺少 WebView2 时安装程序会下载引导程序，这一步需要联网；安装后核心功能可离线运行。未提供代码签名凭据时，构建产物未签名。详见 [Tauri Windows 安装包文档](https://v2.tauri.app/distribute/windows-installer/)。
 
 模块边界见[架构说明](docs/architecture.md)，实际执行的检查和平台范围见[验收记录](docs/validation.md)。
-
-配套扩展位于 `vscode-helper/`，`npm run build:helper` 使用 Node.js 内置库生成 `src-tauri/resources/repojump-vscode.vsix`。桌面开发、生产构建和直接 Cargo 构建都会生成此资源；安装包包含它，支持离线安装。

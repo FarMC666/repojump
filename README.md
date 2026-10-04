@@ -79,14 +79,6 @@ Startup displays the cache before refreshing it. There is no filesystem watcher:
 
 **VS Code:** RepoJump launches `Code.exe` with `--new-window` and the project path as separate arguments. It checks the configured executable first, then PATH, registry entries and common installation locations. Set a path in Settings if automatic detection fails. Spaces, Chinese characters and shell punctuation remain part of the path.
 
-Use **VS Code startup content** in the project menu to save one option per project. Enter, double-click and the Open button all apply it:
-
-- **Default:** use VS Code's normal startup behavior.
-- **File:** enter a project-relative path, such as `index.html`, or use the native file picker. The file must exist inside the project and becomes the active editor when launched.
-- **Git Graph:** show Git Graph in the new project window. Install and enable `mhutchie.git-graph` first; RepoJump automatically installs its bundled companion extension on first use. This mode opens a unique workspace stored in application data without changing project files. Only the current RepoJump request triggers Git Graph; manually opening a project or restoring a consumed workspace does not repeat it.
-
-An unavailable file, installation failure, missing Git Graph or timeout still leaves the project open and shows a warning. The saved option remains, and Recent is updated. Selecting Default removes the project's override.
-
 **Terminal:** Automatic mode tries Windows Terminal, then PowerShell. PowerShell uses the process working directory and `-NoProfile -NoExit`; project paths are never inserted into a shell script. Paths containing semicolons use PowerShell to avoid Windows Terminal command-separator ambiguity.
 
 **Repository:** The project menu reads Git's `origin` and converts supported HTTP/S, SSH and scp-style URLs to browser links while preserving the host. GitHub, GitLab and other hosts are supported; Azure DevOps SSH URLs have a dedicated conversion.
@@ -114,13 +106,11 @@ Later roots do not change the automatic location. Removing the first root select
 
 In **Settings → Local data**, choose **Custom folder**, select its parent directory, and save. RepoJump creates `.repojump` inside that directory and transfers your roots, manual entries, favorites, recent history, settings, category overrides and cache. **Current data folder** shows the actual active path. Returning to Automatic uses the first root again. Canceling Settings leaves the location unchanged.
 
-- `state.json` holds user state, including per-project VS Code startup overrides, with a schema version and profile identity.
+- `state.json` holds user state with a schema version and profile identity.
 - `state.json.bak` retains the previous valid state.
 - `index.json` is a rebuildable project cache.
 
 The original `%LOCALAPPDATA%\com.farmc.repojump` directory keeps a small `storage-location.json` locator and a `.repojump` recovery copy. This lets RepoJump start when a code drive is disconnected. Changes made during fallback are retained when the configured drive returns and RepoJump restarts. WebView2's own runtime data remains in the system application-data location.
-
-Git Graph workspaces remain under `vscode-launches/` in that original application-data directory even when preferences move elsewhere. Requests and receipts are cleaned after consumption or expiry; workspace files remain for window restoration and are excluded from VS Code's recently opened list.
 
 Migration writes the new data before switching the locator and retains the old copy. A destination belonging to another profile is rejected. Existing AppData-only installations are migrated automatically. Configuration files use atomic replacement; damaged files are preserved and valid backups are recovered with a visible warning. Unsupported newer schemas are protected from writes. Installer upgrades retain application data.
 
@@ -152,5 +142,3 @@ npm run package
 The Windows x64 NSIS installer is generated in `src-tauri/target/release/bundle/nsis/`. Packaging tools are cached in `src-tauri/target/.tauri/`. Installation is per user and does not require administrator privileges. If WebView2 is missing, the installer downloads its bootstrapper; that step requires internet access. The core application runs offline after installation. Builds are unsigned unless you supply signing credentials. See [Tauri's Windows installer documentation](https://v2.tauri.app/distribute/windows-installer/).
 
 See [architecture](docs/architecture.md) for module boundaries and [validation records](docs/validation.md) for the checks and platforms actually exercised.
-
-The companion extension lives in `vscode-helper/`. `npm run build:helper` generates `src-tauri/resources/repojump-vscode.vsix` using Node.js built-in libraries. Desktop development, production builds and direct Cargo builds generate the resource; the installer bundles it for offline installation.

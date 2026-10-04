@@ -1,13 +1,6 @@
 import type { AppError, Settings } from './models';
 
 const en = {
-  vscodeStartup: 'VS Code startup content', startupContent: 'Show when opening this project', startupDefault: 'Default', startupFile: 'Specified file', startupFilePath: 'Project-relative file path',
-  startupDefaultHint: 'Use the usual VS Code startup behavior.', startupFileHint: 'Choose an existing file inside this project, such as index.html or src/main.ts.',
-  startupGitGraphHint: 'Requires Git Graph. RepoJump installs its companion extension on first use and opens this project in a managed workspace. If unavailable, the project still opens with a warning.',
-  startupFileInvalid: 'Choose an existing file inside this project using a relative path.', startupFileUnavailable: 'The project was opened, but the startup file is missing or unavailable. Update its startup content.',
-  startupHelperFailed: 'The project was opened, but the RepoJump companion extension could not be installed.', startupContentFailed: 'The project was opened, but its startup content could not be shown.',
-  startupTimeout: 'The project was opened, but the companion extension did not respond in time. Check that it is enabled.', gitGraphUnavailable: 'The project was opened, but Git Graph is missing, disabled or unavailable.',
-  startupWorkspaceUntrusted: 'The project was opened. Trust this workspace in VS Code, then open it again to show Git Graph.',
   all: 'All projects', favorites: 'Favorites', recent: 'Recent', categories: 'Categories', uncategorized: 'Uncategorized',
   search: 'Search projects…', settings: 'Settings', addRoot: 'Add code root', addProject: 'Add single project', rescan: 'Rescan',
   addRootHint: 'Scan projects inside a folder, such as D:\\code.', addProjectHint: 'Add one project folder, without scanning its children.',
@@ -48,13 +41,6 @@ const en = {
 
 type Key = keyof typeof en;
 const zh: Record<Key, string> = {
-  vscodeStartup: 'VS Code 启动内容', startupContent: '打开此项目时显示', startupDefault: '默认', startupFile: '指定文件', startupFilePath: '项目内的文件相对路径',
-  startupDefaultHint: '使用 VS Code 原有的启动行为。', startupFileHint: '选择项目内已存在的文件，例如 index.html 或 src/main.ts。',
-  startupGitGraphHint: '需要已安装 Git Graph。首次使用会自动安装 RepoJump 配套扩展，以托管工作区打开此项目。启动内容不可用时仍打开项目并提示。',
-  startupFileInvalid: '请输入项目内已存在文件的相对路径，或重新选择文件。', startupFileUnavailable: '项目已打开，但启动文件不存在或无法访问，请修改启动内容。',
-  startupHelperFailed: '项目已打开，但 RepoJump 配套扩展未能安装。', startupContentFailed: '项目已打开，但启动内容未能显示。',
-  startupTimeout: '项目已打开，但配套扩展响应超时，请检查是否已启用。', gitGraphUnavailable: '项目已打开，但 Git Graph 未安装、被禁用或不可用。',
-  startupWorkspaceUntrusted: '项目已打开。请在 VS Code 中信任此工作区，再次打开即可显示 Git Graph。',
   all: '全部项目', favorites: '收藏', recent: '最近打开', categories: '分类', uncategorized: '未分类',
   search: '搜索项目…', settings: '设置', addRoot: '添加代码根目录', addProject: '手动添加项目', rescan: '重新扫描',
   addRootHint: '选择 D:\\code 等目录，自动扫描其中的项目。', addProjectHint: '仅添加选中的项目文件夹，不扫描子目录。',

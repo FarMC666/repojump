@@ -7,7 +7,6 @@ import { displayCategory, searchProjects } from './search';
 import { errorText, locale, translator } from './i18n';
 import { Dialog } from './components/Dialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { VscodeStartupDialog } from './components/VscodeStartupDialog';
 
 type Confirmation = { title: string; body: string; path: string; run: () => Promise<unknown> };
 
@@ -22,7 +21,6 @@ export function App() {
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState<{ project: Project; x: number; y: number } | null>(null);
   const [categoryEdit, setCategoryEdit] = useState<Project | null>(null);
-  const [startupEdit, setStartupEdit] = useState<Project | null>(null);
   const [categoryDraft, setCategoryDraft] = useState('');
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [folderChoice, setFolderChoice] = useState<string | null>(null);
@@ -59,7 +57,7 @@ export function App() {
         if (cancelled) { stopUpdates(); return; } cleanups.push(stopUpdates);
         const stopFocus = await api.onFocus(isQuick => {
           setQuick(isQuick); setQuery(''); setView({ kind: 'all' }); setMenu(null);
-          setSettingsOpen(false); setConfirmation(null); setCategoryEdit(null); setStartupEdit(null); setFolderChoice(null);
+          setSettingsOpen(false); setConfirmation(null); setCategoryEdit(null); setFolderChoice(null);
           requestAnimationFrame(() => searchRef.current?.focus());
         });
         if (cancelled) { stopFocus(); return; } cleanups.push(stopFocus);
@@ -140,23 +138,23 @@ export function App() {
     try {
       const result = await api.launch(project.id, target);
       if (result.snapshot) update(result.snapshot);
-      if (result.warnings.length) setToast({ text: result.warnings.map(warning => errorText(warning, t)).join(' '), error: true });
+      if (result.warning) report(result.warning);
       else if (target === 'vscode' && quick) { await api.hide(); setQuick(false); }
     } catch (e) { report(e); }
     finally { launchLock.current = false; setLaunching(null); }
-  }, [quick, update, report, t]);
+  }, [quick, update, report]);
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229 || composing.current) return;
       if (event.key === 'Escape') {
         if (menu) { event.preventDefault(); setMenu(null); searchRef.current?.focus(); }
-        else if (!settingsOpen && !categoryEdit && !startupEdit && !confirmation && !folderChoice) {
+        else if (!settingsOpen && !categoryEdit && !confirmation && !folderChoice) {
           if (query) setQuery(''); else if (quick) { void api.hide(); setQuick(false); }
         }
         return;
       }
-      if (settingsOpen || categoryEdit || startupEdit || confirmation || folderChoice || menu) return;
+      if (settingsOpen || categoryEdit || confirmation || folderChoice || menu) return;
       if (event.ctrlKey && event.key.toLowerCase() === 'k') { event.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); return; }
       const target = event.target as HTMLElement;
       if (target !== searchRef.current && target.closest('input, select, textarea, button')) return;
@@ -167,7 +165,7 @@ export function App() {
       } else if (event.key === 'Enter' && selected && !event.repeat) { event.preventDefault(); void launch(selected); }
     };
     window.addEventListener('keydown', keyboard); return () => window.removeEventListener('keydown', keyboard);
-  }, [results, selected, selectedIndex, menu, query, quick, settingsOpen, categoryEdit, startupEdit, confirmation, folderChoice, launch]);
+  }, [results, selected, selectedIndex, menu, query, quick, settingsOpen, categoryEdit, confirmation, folderChoice, launch]);
 
   const chooseView = (next: View) => { setView(next); setSelectedId(null); setQuery(''); searchRef.current?.focus(); };
   const confirmRoot = (id: string) => {
@@ -179,7 +177,7 @@ export function App() {
     setPending(true); try { await confirmation.run(); setConfirmation(null); } catch (e) { report(e); } finally { setPending(false); }
   };
   const showMenu = (project: Project, x: number, y: number) => {
-    setSelectedId(project.id); setMenu({ project, x: Math.max(8, Math.min(x, window.innerWidth - 254)), y: Math.max(8, Math.min(y, window.innerHeight - 410)) });
+    setSelectedId(project.id); setMenu({ project, x: Math.max(8, Math.min(x, window.innerWidth - 254)), y: Math.max(8, Math.min(y, window.innerHeight - 370)) });
   };
   const emptyKey = query ? 'noResults' : view.kind === 'favorites' ? 'noFavorites' : view.kind === 'recent' ? 'noRecent' : !snapshot?.roots.length && !snapshot?.projects.length ? 'welcome' : 'noProjects';
 
@@ -219,12 +217,10 @@ export function App() {
       <button role="menuitem" onClick={() => { void api.copy(menu.project.id).then(() => setToast({ text: t('copied'), error: false })).catch(report); setMenu(null); }}><Copy size={16} />{t('copyPath')}</button><hr />
       <button role="menuitem" disabled={snapshot?.storageReadOnly} onClick={() => { void run(() => api.favorite(menu.project.id, !menu.project.favorite)); setMenu(null); }}><Star size={16} />{t(menu.project.favorite ? 'unfavorite' : 'favorite')}</button>
       <button role="menuitem" disabled={snapshot?.storageReadOnly} onClick={() => { setCategoryEdit(menu.project); setCategoryDraft(menu.project.category ?? ''); setMenu(null); }}><Folder size={16} />{t('editCategory')}<ChevronRight size={14} /></button>
-      <button role="menuitem" disabled={snapshot?.storageReadOnly} onClick={() => { setStartupEdit(menu.project); setMenu(null); }}><Code2 size={16} />{t('vscodeStartup')}<ChevronRight size={14} /></button>
       {menu.project.categoryOverride && <button role="menuitem" onClick={() => { void run(() => api.category(menu.project.id, null)); setMenu(null); }}><RefreshCw size={16} />{t('autoCategory')}</button>}
       {menu.project.manual && <><hr />{!menu.project.isGit && menu.project.tags.length === 0 && <button role="menuitem" disabled={snapshot?.storageReadOnly || menu.project.availability === 'missing'} onClick={() => { const project = menu.project; setMenu(null); void run(() => api.scanDirectory(project.id).then(next => { updateDiscovery(next); })); }}><FolderPlus size={16} />{t('scanDirectory')}</button>}<button role="menuitem" className="danger" disabled={snapshot?.storageReadOnly} onClick={() => { const project = menu.project; setConfirmation({ title: t('removeManual'), body: t('removeManualBody'), path: project.path, run: () => api.removeProject(project.id).then(update) }); setMenu(null); }}><X size={16} />{t('removeManual')}</button></>}
     </div>}
     {settingsOpen && snapshot && <SettingsDialog snapshot={snapshot} t={t} onClose={() => setSettingsOpen(false)} update={update} updateRoots={updateDiscovery} addRoot={addRoot} removeRoot={confirmRoot} report={report} />}
-    {startupEdit && <VscodeStartupDialog project={startupEdit} t={t} update={update} onClose={() => { setStartupEdit(null); requestAnimationFrame(() => searchRef.current?.focus()); }} />}
     {folderChoice && <Dialog title={t('folderChoice')} t={t} onClose={() => { if (!pending) setFolderChoice(null); }}><form onSubmit={e => { e.preventDefault(); void addChosenFolder(true); }}><div className="dialog-body"><p>{t('folderChoiceBody')}</p><code className="data-path">{folderChoice}</code></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => { void addChosenFolder(false); }}>{t('addOnlyFolder')}</button><button className="primary-button" disabled={pending}>{t('scanDirectory')}</button></div></form></Dialog>}
     {categoryEdit && <Dialog title={t('editCategory')} t={t} onClose={() => { if (!pending) setCategoryEdit(null); }}><form onSubmit={async e => { e.preventDefault(); setPending(true); try { update(await api.category(categoryEdit.id, categoryDraft)); setCategoryEdit(null); } catch (error) { report(error); } finally { setPending(false); } }}><div className="dialog-body"><p className="dialog-project">{categoryEdit.name}</p><label htmlFor="category-name">{t('category')}</label><input id="category-name" autoFocus maxLength={64} required value={categoryDraft} onChange={e => setCategoryDraft(e.target.value)} /></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => setCategoryEdit(null)}>{t('cancel')}</button><button className="primary-button" disabled={pending}>{t('save')}</button></div></form></Dialog>}
     {confirmation && <Dialog title={confirmation.title} t={t} onClose={() => { if (!pending) setConfirmation(null); }}><div className="dialog-body"><p>{confirmation.body}</p><code className="data-path">{confirmation.path}</code></div><div className="dialog-footer"><button type="button" className="secondary-button" disabled={pending} onClick={() => setConfirmation(null)}>{t('cancel')}</button><button className="danger-button" disabled={pending} onClick={() => { void confirm(); }}>{t('remove')}</button></div></Dialog>}

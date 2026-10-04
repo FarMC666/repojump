@@ -36,16 +36,6 @@ An offline location falls back to the recovery copy and updates the locator. The
 
 Opening accepts a registered project ID and a fixed target enum. VS Code and terminals use executable/argument arrays, with no user paths embedded in shell scripts. Windows CLI shims are resolved to the actual editor exe. A VS Code spawn records Recent; a later persistence failure is reported as a successful launch with an unsaved Recent warning, preventing retries from opening duplicate windows.
 
-Per-project VS Code startup overrides are user metadata, separate from the rebuildable index. They default to normal opening for legacy state. File selections are canonicalized and checked against the project root both when saved and when launched, including reparse-point resolution. All launch entrypoints use the same backend configuration.
-
-Git Graph opening installs only the bundled `farmc.repojump-startup` companion VSIX, using the configured editor's Node CLI and a 30-second process deadline. It never installs Git Graph. Current Windows installations locate `cli.js` from the editor's own `bin/code.cmd`; the shim is read as data, never executed. The CLI's Electron Node environment is scoped to that process and removed for editor window launches.
-
-Each Graph launch creates a unique single-folder `.code-workspace` under application data. Its workspace-only setting points to a sibling request with a UUID, exact project path and 15-second expiration. The companion activates after startup, verifies that the request matches its window's only local folder, atomically claims it, activates Git Graph and invokes `git-graph.view` with the project's `rootUri`. It respects workspace trust and never accepts arbitrary commands. A matching atomic receipt reports success or a localized failure to Rust. Only transient request/receipt files are removed; workspace files remain usable for restore, without adding generated entries to VS Code's Recent list.
-
-The launch directory uses `StorageManager`'s resolved bootstrap path and stays fixed when the active preference store moves. Startup overrides are transferred and mirrored with other user metadata. Equivalent-profile recovery compares these overrides too, so different startup preferences cannot be mistaken for duplicate configurations.
-
-Startup-content failures preserve an already opened window or fall back to one ordinary project launch before any workspace is opened. `LaunchResult.warnings` reports all startup and Recent-save warnings together. Quick launch remains visible when warnings need attention.
-
 Git is optional. Its child processes have bounded execution time, drained/bounded output, no prompts or lazy fetching, optional write locks disabled and fsmonitor disabled. Only HTTP/S repository URLs reach the OS opener; SSH conversion preserves the host and removes credentials.
 
 Single-instance startup, tray activation and global shortcuts all reveal the same window. Only shortcut activation enters quick-launch mode. Shortcut changes register the replacement before releasing the active shortcut and roll back if persistence fails. Configured shortcuts and successfully registered shortcuts are tracked separately, so a startup conflict can be repaired.
@@ -57,5 +47,3 @@ The native picker uses the official Windows API bindings on a fresh STA worker t
 Vitest covers search semantics and 500-project search performance. Rust tests cover markers, multi-label detection, recursion rules, identity/category behavior, literal launch arguments, origin conversion, source preservation, unavailable roots and configuration recovery/version protection. Real desktop acceptance additionally checks native selection, actual editor/terminal/Explorer launching, global key activation, tray/close behavior, restart persistence and installer upgrade behavior.
 
 An optional `REPOJUMP_TEST_DATA` environment variable redirects only **debug builds** to an isolated user-state directory for native QA. Release builds always use the stable application data directory. Temporary QA scripts, fixtures and screenshots live under ignored `.validation/`; build/download caches live under ignored `.tools/`.
-
-Debug builds also accept an absolute `REPOJUMP_TEST_VSCODE_PROFILE` directory. Both editor launches and extension-management CLI calls use its `user-data/` and `extensions/` children, keeping native startup QA out of the user's editor profile. This override is compiled out of release builds.
