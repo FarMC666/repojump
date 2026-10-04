@@ -5,6 +5,7 @@ src-tauri/gen/
 .tools/
 .tauri/
 .validation/
+.repojump/
 *.log
 .env
 .env.*

@@ -22,6 +22,7 @@ export const api = {
   copy: (id: string) => invoke<void>('copy_project_path', { id }),
   pickDirectory: () => invoke<string | null>('pick_path', { kind: 'directory' }),
   pickRoot: () => invoke<string | null>('pick_path', { kind: 'codeRoot' }),
+  pickDataLocation: () => invoke<string | null>('pick_path', { kind: 'dataLocation' }),
   pickCode: () => invoke<string | null>('pick_path', { kind: 'code' }),
   subscribe: (update: (snapshot: AppSnapshot) => void) => listen<AppSnapshot>('index-updated', e => update(e.payload)),
   onFocus: (focus: (quick: boolean) => void) => listen<boolean>('launcher-focus', e => focus(e.payload)),

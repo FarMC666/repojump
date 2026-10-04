@@ -7,6 +7,7 @@ export interface Settings {
   terminal: 'auto' | 'powershell' | 'windowsTerminal';
   globalShortcut: string | null;
   closeToTray: boolean;
+  dataLocation: string | null;
 }
 export interface CodeRoot { id: string; path: string }
 export interface Project {
@@ -26,5 +27,5 @@ export interface LaunchResult { snapshot: AppSnapshot | null; warning: AppError 
 
 export const defaultSettings: Settings = {
   theme: 'dark', language: 'system', scanDepth: 4, vscodePath: null,
-  terminal: 'auto', globalShortcut: 'Ctrl+Alt+P', closeToTray: true,
+  terminal: 'auto', globalShortcut: 'Ctrl+Alt+P', closeToTray: true, dataLocation: null,
 };

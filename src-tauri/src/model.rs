@@ -32,6 +32,7 @@ pub struct Settings {
     pub terminal: String,
     pub global_shortcut: Option<String>,
     pub close_to_tray: bool,
+    pub data_location: Option<String>,
 }
 
 impl Default for Settings {
@@ -44,11 +45,12 @@ impl Default for Settings {
             terminal: "auto".into(),
             global_shortcut: Some("Ctrl+Alt+P".into()),
             close_to_tray: true,
+            data_location: None,
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeRoot {
     pub id: String,
@@ -59,6 +61,7 @@ pub struct CodeRoot {
 #[serde(rename_all = "camelCase", default)]
 pub struct UserData {
     pub schema_version: u32,
+    pub profile_id: String,
     pub roots: Vec<CodeRoot>,
     pub manual_projects: Vec<String>,
     pub favorites: BTreeSet<String>,
@@ -71,6 +74,7 @@ impl Default for UserData {
     fn default() -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
+            profile_id: uuid::Uuid::new_v4().to_string(),
             roots: Vec::new(),
             manual_projects: Vec::new(),
             favorites: BTreeSet::new(),

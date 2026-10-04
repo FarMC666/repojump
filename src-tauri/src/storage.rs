@@ -11,7 +11,7 @@ pub struct Storage {
     pub read_only: bool,
 }
 
-fn decode_user(bytes: &[u8]) -> AppResult<UserData> {
+pub(crate) fn decode_user(bytes: &[u8]) -> AppResult<UserData> {
     let mut value: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|e| AppError::new("storageCorrupt", e.to_string()))?;
     if !value.is_object() {
@@ -29,7 +29,7 @@ fn decode_user(bytes: &[u8]) -> AppResult<UserData> {
     serde_json::from_value(value).map_err(|e| AppError::new("storageCorrupt", e.to_string()))
 }
 
-fn atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
+pub(crate) fn atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
     let mut file =
         AtomicWriteFile::open(path).map_err(|e| AppError::new("storageFailure", e.to_string()))?;
     file.write_all(bytes)
@@ -128,7 +128,16 @@ impl Storage {
         let path = self.directory.join("state.json");
         if let Ok(previous) = fs::read(&path) {
             // Never replace a valid backup with a corrupt primary.
-            decode_user(&previous)?;
+            let decoded = decode_user(&previous)?;
+            let has_profile = serde_json::from_slice::<serde_json::Value>(&previous)
+                .ok()
+                .is_some_and(|value| value.get("profileId").is_some());
+            if has_profile && decoded.profile_id != user.profile_id {
+                return Err(AppError::new(
+                    "storageLocationConflict",
+                    path.display().to_string(),
+                ));
+            }
             atomic(&self.directory.join("state.json.bak"), &previous)?;
         }
         let bytes = serde_json::to_vec_pretty(user)

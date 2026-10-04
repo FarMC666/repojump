@@ -19,6 +19,9 @@ pub fn validate(settings: &Settings) -> AppResult<()> {
     if settings.vscode_path.is_some() {
         launcher::vscode(settings)?;
     }
+    if let Some(location) = &settings.data_location {
+        crate::paths::directory(location)?;
+    }
     if let Some(shortcut) = &settings.global_shortcut {
         shortcut
             .parse::<Shortcut>()

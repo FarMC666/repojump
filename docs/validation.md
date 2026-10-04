@@ -1,5 +1,23 @@
 # RepoJump 验收记录
 
+## 0.1.2：本地数据位置与滚动行为
+
+2026-10-04，在下述 Windows 11 开发机完成验证。Windows 10 未实际运行本次回归。
+
+- TypeScript typecheck、Vite production build、5 项 Vitest、20 项 Rust 测试、Rust fmt 和 Clippy all-targets / warnings as errors 通过；Windows x64 release 和 NSIS 构建通过。
+- 存储测试覆盖首次启动的默认隐藏目录、第一个 Root、后续 Root 位置稳定、自定义目录、恢复自动位置、移除全部 Root、旧配置迁移、重启、运行期间离线回退及重连后保留新设置。另覆盖位置记录损坏保留、迁移目标配置冲突、位置记录写入失败时保留源数据，以及新版本配置只读保护。
+- 独立配置通过真实 Root 选择器添加含空格、中文、`&`、括号、分号的目录，发现 45 个项目，数据进入该 Root 的 `.repojump`。第二个 Root 不改变位置；在 `.repojump` 中放置带项目标记的测试目录也不会被扫描。
+- 真实 Settings 目录选择器验证 Cancel 不迁移、Save 迁移并保留收藏和分类、旧位置副本保留。选择已有其他 profile 的目录显示错误且不覆盖双方数据。
+- 真实搜索 → Enter → VS Code 新窗口 → Recent 保存通过。正常退出并重启后，自定义位置、Roots、收藏、分类和 Recent 恢复。模拟数据盘在运行期间离线后仍可保存；重连并重启后接收离线期间的新设置，Recent 保留。
+- 真实 WebView 列表滚到底后继续发送滚轮输入，位置保持在边界；CSS `overscroll-behavior: none` 生效。Windows WebView2 进程确认使用 `--disable-features=ElasticOverscroll`。中英文、深浅主题和 680×480 视口中的设置页无横向溢出，截图完成检查。
+- 旧 AppData 配置迁移后，用户原有 Root、手动条目、收藏、5 条 Recent、分类覆盖和已有设置逐字段一致。最终安装版数据目录为 `D:\code\.repojump`，Hidden 属性生效，当前深度 2 的 Root 扫描发现 8 个项目。
+- NSIS 覆盖安装退出码 0；安装阶段原配置不变。最终安装程序正常启动和再次重启后，Settings 显示新目录，保存相同设置成功，没有存储告警；搜索及滚动边界通过。最终运行实例已移除临时远程调试参数。
+- 本机 Windows 打包宿主会将 AppData 新写入重定向到另一磁盘。位置记录使用新建恢复文件夹的实际父目录，真实安装版验证原子替换不再出现跨磁盘移动错误。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.2_x64-setup.exe`，1,806,054 字节，约 1.72 MiB。SHA256：`FC2F519F82F8DF8125B1D38B20964EDFBDF789A66363DDD4245E0C2FF0F36C4F`。
+
+本次没有重新验证未修改的 Terminal、Explorer、托盘和全局快捷键流程；基础验收见下文。滚轮边界和启动参数已验证，未单独模拟触控板惯性手势。
+
 ## 0.1.1：分类目录发现与搜索回归
 
 2026-10-04，在下述 Windows 11 开发机上完成验证。Windows 10 未实际运行本次回归。

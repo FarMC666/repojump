@@ -1,6 +1,6 @@
 [package]
 name = "repojump"
-version = "0.1.1"
+version = "0.1.2"
 description = "A local development project launcher"
 authors = ["FarMC"]
 edition = "2021"
@@ -27,7 +27,7 @@ url = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
 
 [dev-dependencies]
 tempfile = "3"
