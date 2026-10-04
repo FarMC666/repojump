@@ -1,5 +1,31 @@
 # RepoJump 验收记录
 
+## 0.1.4：重复迁移导致的数据位置回退
+
+2026-10-04，在下述 Windows 11 开发机完成验证。Windows 10 未实际运行本次回归。
+
+- 复现了普通桌面启动与 Codex 宿主启动访问不同 AppData 视图的问题。两份配置的用户记录一致，但 profile 和 Root 标识不同，0.1.3 将根目录数据误判为其他配置并回退。通过原生 Settings 确认实际目录为 AppData；独立读取未重定向的本机目录确认冲突原因。
+- TypeScript typecheck、Vite production build、5 项 Vitest、25 项 Rust 测试、Rust fmt、Clippy all-targets / warnings as errors 和 Windows x64 NSIS 构建通过。新增测试覆盖等价重复配置恢复、无位置记录的旧配置识别已有较新数据、真正不同的用户记录仍受保护，以及恢复首选目录后清除过期回退提示。
+- 独立配置在真实 Tauri/WebView2 窗口中恢复到包含中文、空格和特殊字符路径的根目录，完成后台扫描、Settings 保存及重启。根目录标识、收藏和 Recent 保留，没有存储告警。
+- NSIS 0.1.3 → 0.1.4 覆盖升级退出码 0；安装阶段根目录及普通桌面 AppData 配置的 SHA256 不变。升级后通过 Windows 资源管理器启动实际安装程序，Settings 显示 `D:\code\.repojump`，默认本地恢复副本与位置记录使用根目录中的原配置标识。重复迁移产生的旧 AppData 配置已在工作区内备份。
+- 实际安装版保存相同设置并再次正常桌面启动，未再出现回退或保存错误；根目录原用户状态 SHA256 保持一致。源配置中的 5 条 Recent、分类覆盖和已有设置保留；内部 Root 标识复用根目录原记录。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.4_x64-setup.exe`，1,813,190 字节，约 1.73 MiB。SHA256：`4788465E27F65F5AEF53821D6E9E1A7D396EF0A886518D1DF1BE24587977D4C9`。
+
+本次未重新验证未修改的 VS Code、Terminal、Explorer 和 Git 启动逻辑。
+
+## 0.1.3：托盘菜单语言
+
+2026-10-04，在下述 Windows 11 开发机完成验证。Windows 10 未实际运行本次回归。
+
+- TypeScript typecheck、Vite production build、5 项 Vitest、21 项 Rust 测试、Rust fmt、Clippy all-targets / warnings as errors 和 Windows x64 NSIS 构建通过。
+- 在独立配置中通过真实 Settings 保存中文和英文，Windows 原生托盘菜单立即分别显示“打开 RepoJump / 退出”和“Open RepoJump / Quit”，每个选项只显示一种语言。原生菜单截图完成检查。
+- 跟随系统与主界面语言一致。模拟 WebView 语言与 Windows 显示语言不同，托盘跟随主界面解析结果；过期的同步请求不会覆盖显式语言设置。
+- 通过托盘运行时的原生右键通知消息打开菜单，验证打开和退出选项的回调。重新启动独立配置后保留英文菜单；最终安装版验证主界面与原生托盘菜单均为中文，原用户配置 SHA256 不变。未单独执行托盘图标上的物理鼠标右键测试。
+- NSIS 0.1.2 → 0.1.3 覆盖升级退出码 0，安装阶段原用户配置 SHA256 不变。
+
+安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.3_x64-setup.exe`，1,811,902 字节，约 1.73 MiB。SHA256：`904052AFB4BFBDEA2003FB554491BDE301BC0171BF1752598155B5CEE24C5053`。
+
 ## 0.1.2：本地数据位置与滚动行为
 
 2026-10-04，在下述 Windows 11 开发机完成验证。Windows 10 未实际运行本次回归。

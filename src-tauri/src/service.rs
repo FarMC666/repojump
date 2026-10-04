@@ -330,7 +330,7 @@ impl AppState {
 
     pub fn save_settings(&self, app: &AppHandle, next: Settings) -> AppResult<AppSnapshot> {
         settings::validate(&next)?;
-        let (snapshot, rescan) = {
+        let (mut snapshot, rescan) = {
             let mut inner = self.inner.lock().unwrap();
             let previous = inner.user.settings.clone();
             let previous_active = inner.active_shortcut.clone();
@@ -372,6 +372,14 @@ impl AppState {
             }
             (self.snapshot_locked(&inner), rescan)
         };
+        if let Err(error) = app
+            .state::<crate::tray_menu::TrayMenu>()
+            .apply(&snapshot.settings.language)
+        {
+            let mut inner = self.inner.lock().unwrap();
+            add_warning(&mut inner, error);
+            snapshot = self.snapshot_locked(&inner);
+        }
         let _ = app.emit("index-updated", &snapshot);
         if rescan {
             request_scan(app);

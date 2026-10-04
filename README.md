@@ -52,6 +52,8 @@ The global shortcut can be changed or disabled in Settings. A conflict keeps the
 
 Closing the window keeps the application in the tray by default. Exit through the tray menu, or disable this behavior in Settings. A successful VS Code launch hides a window opened through the global shortcut; a normally opened window stays visible.
 
+The tray menu follows the application's language, including Follow system, and updates when you save a language change.
+
 ## Project discovery
 
 Recognized markers include:
@@ -111,6 +113,8 @@ In **Settings → Local data**, choose **Custom folder**, select its parent dire
 The original `%LOCALAPPDATA%\com.farmc.repojump` directory keeps a small `storage-location.json` locator and a `.repojump` recovery copy. This lets RepoJump start when a code drive is disconnected. Changes made during fallback are retained when the configured drive returns and RepoJump restarts. WebView2's own runtime data remains in the system application-data location.
 
 Migration writes the new data before switching the locator and retains the old copy. A destination belonging to another profile is rejected. Existing AppData-only installations are migrated automatically. Configuration files use atomic replacement; damaged files are preserved and valid backups are recovered with a visible warning. Unsupported newer schemas are protected from writes. Installer upgrades retain application data.
+
+If separate startup environments migrated the same configuration twice, Automatic storage reuses the existing root data when the user records match. Different records and custom-location profile conflicts remain protected. A fallback warning appears only while the preferred location is actually unavailable.
 
 The `.repojump` directory has the Windows Hidden attribute. Enable **Hidden items** in Explorer to inspect it. If a code root is itself a Git repository, add `.repojump/` to your own ignore rules to keep local preferences out of Git; RepoJump does not edit project `.gitignore` files.
 

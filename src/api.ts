@@ -17,6 +17,7 @@ export const api = {
   favorite: (id: string, favorite: boolean) => invoke<AppSnapshot>('set_favorite', { id, favorite }),
   category: (id: string, category: string | null) => invoke<AppSnapshot>('set_category_override', { id, category }),
   settings: (settings: Settings) => invoke<AppSnapshot>('update_settings', { settings }),
+  syncTrayLanguage: (language: 'en' | 'zh-CN') => invoke<void>('sync_tray_language', { language }),
   git: (id: string) => invoke<GitMetadata>('get_git_metadata', { id }),
   launch: (id: string, target: LaunchTarget) => invoke<LaunchResult>('launch_project', { id, target }),
   copy: (id: string) => invoke<void>('copy_project_path', { id }),

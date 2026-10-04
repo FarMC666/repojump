@@ -10,10 +10,10 @@ mod picker;
 mod service;
 mod settings;
 pub mod storage;
+mod tray_menu;
 
 use service::AppState;
 use tauri::{
-    menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
@@ -73,9 +73,9 @@ pub fn run() {
                     state.inner.lock().unwrap().active_shortcut = Some(shortcut);
                 }
             }
-            let open = MenuItem::with_id(app, "open", "Open RepoJump / 打开", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit / 退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let language = state.inner.lock().unwrap().user.settings.language.clone();
+            let (menu, tray_menu) = tray_menu::TrayMenu::new(app.handle(), &language)?;
+            app.manage(tray_menu);
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("RepoJump")
@@ -132,6 +132,7 @@ pub fn run() {
             commands::get_git_metadata,
             commands::launch_project,
             picker::pick_path,
+            tray_menu::sync_tray_language,
         ])
         .run(tauri::generate_context!())
         .expect("RepoJump could not start");

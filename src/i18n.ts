@@ -36,6 +36,7 @@ const en = {
   shortcutConflict: 'The global shortcut could not be registered. Choose another shortcut in Settings.', shortcutInvalid: 'Enter a valid shortcut, such as Ctrl+Alt+P.', invalidSettings: 'Some settings are invalid.', categoryInvalid: 'Enter a category name with 1–64 characters.',
   gitUnavailable: 'Git information could not be read.', unexpected: 'Something went wrong. Try again.', directoryMissing: 'Folder missing', directoryUnreadable: 'Folder cannot be read',
   pickerFailed: 'The folder or file picker could not be opened.', selected: 'selected', quick: 'Quick launch', enterHint: 'open project', navigateHint: 'navigate', searchHint: 'search', version: 'Version',
+  trayUpdateFailed: 'The tray menu language could not be updated. Restart RepoJump to retry.',
 } as const;
 
 type Key = keyof typeof en;
@@ -75,6 +76,7 @@ const zh: Record<Key, string> = {
   shortcutConflict: '无法注册全局快捷键，请在设置中选择其他组合。', shortcutInvalid: '请输入有效的快捷键，例如 Ctrl+Alt+P。', invalidSettings: '部分设置无效。', categoryInvalid: '分类名称需要包含 1–64 个字符。',
   gitUnavailable: '无法读取 Git 信息。', unexpected: '操作失败，请重试。', directoryMissing: '目录不存在', directoryUnreadable: '无法读取目录',
   pickerFailed: '无法打开目录或文件选择器。', selected: '已选择', quick: '快捷启动', enterHint: '打开项目', navigateHint: '切换选择', searchHint: '搜索', version: '版本',
+  trayUpdateFailed: '托盘菜单语言未能更新，请重启 RepoJump 后重试。',
 };
 
 export function locale(settings: Settings): 'zh-CN' | 'en' {

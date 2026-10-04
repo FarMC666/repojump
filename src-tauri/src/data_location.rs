@@ -87,7 +87,7 @@ fn prepare(directory: &Path) -> AppResult<Storage> {
     })
 }
 
-fn existing_state(directory: &Path, profile: Option<&str>) -> AppResult<()> {
+fn existing_state(directory: &Path, profile: Option<&str>) -> AppResult<UserData> {
     let metadata = fs::symlink_metadata(directory)
         .map_err(|e| AppError::new("directoryUnavailable", e.to_string()))?;
     if paths::is_reparse(&metadata) || !metadata.is_dir() {
@@ -114,7 +114,7 @@ fn existing_state(directory: &Path, profile: Option<&str>) -> AppResult<()> {
                         ));
                     }
                 }
-                return Ok(());
+                return Ok(user);
             }
             Err(e) if e.code == "storageNewerVersion" => return Err(e),
             Err(_) => {}
@@ -128,6 +128,22 @@ fn existing_state(directory: &Path, profile: Option<&str>) -> AppResult<()> {
         },
         directory.display().to_string(),
     ))
+}
+
+fn equivalent_preferences(left: &UserData, right: &UserData) -> bool {
+    // Root IDs and profile IDs are internal identities. Separate upgrades of the
+    // same legacy configuration can generate different IDs without changing data.
+    left.schema_version == right.schema_version
+        && left
+            .roots
+            .iter()
+            .map(|root| paths::identity(&root.path))
+            .eq(right.roots.iter().map(|root| paths::identity(&root.path)))
+        && left.manual_projects == right.manual_projects
+        && left.favorites == right.favorites
+        && left.recent == right.recent
+        && left.category_overrides == right.category_overrides
+        && left.settings == right.settings
 }
 
 fn check_destination(store: &Storage, user: &UserData) -> AppResult<()> {
@@ -208,7 +224,7 @@ impl StorageManager {
                 location.directory
             } else if location.directory.is_absolute()
                 && match existing_state(&location.directory, Some(&location.profile_id)) {
-                    Ok(()) => true,
+                    Ok(_) => true,
                     Err(error) => error.code == "storageNewerVersion",
                 }
             {
@@ -224,11 +240,17 @@ impl StorageManager {
             recovery.clone()
         } else if legacy.join("state.json").exists() || legacy.join("state.json.bak").exists() {
             // Upgrade from the original AppData-only layout without dropping fields.
-            legacy
+            legacy.clone()
         } else {
             recovery.clone()
         };
-        let (mut active, user, index, initial) = Storage::load(source);
+        let migrating_legacy = same(&source, &legacy)
+            && fs::read(source.join("state.json"))
+                .or_else(|_| fs::read(source.join("state.json.bak")))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                .is_some_and(|value| value.is_object() && value.get("profileId").is_none());
+        let (mut active, mut user, mut index, initial) = Storage::load(source);
         active.read_only |= locator_read_only;
         warnings.extend(initial);
         let mut manager = Self {
@@ -238,8 +260,53 @@ impl StorageManager {
             profile_id: user.profile_id.clone(),
         };
         if !manager.active.read_only {
+            let desired = manager.desired(&user);
+            if user.settings.data_location.is_none()
+                && !user.roots.is_empty()
+                && !same(&manager.active.directory, &desired)
+            {
+                if let Ok(existing) = existing_state(&desired, None) {
+                    let shared_legacy_root = migrating_legacy
+                        && user.roots.iter().any(|root| {
+                            existing.roots.iter().any(|other| {
+                                root.id == other.id
+                                    && same(Path::new(&root.path), Path::new(&other.path))
+                            })
+                        });
+                    let duplicate = equivalent_preferences(&user, &existing);
+                    if existing.profile_id != user.profile_id && (shared_legacy_root || duplicate) {
+                        // Adopt the existing state instead of overwriting it with
+                        // a second migration made through a different AppData view.
+                        // Divergent profiles and custom locations remain protected.
+                        let duplicate_recovery =
+                            duplicate && same(&manager.active.directory, &manager.recovery);
+                        let (active, restored, cache, extra) = Storage::load(desired);
+                        manager.active = active;
+                        manager.profile_id = restored.profile_id.clone();
+                        user = restored;
+                        index = cache;
+                        warnings.extend(extra);
+                        if duplicate_recovery && !manager.active.read_only {
+                            if let Err(error) = manager.align_duplicate_recovery(&user) {
+                                warnings.push(AppError::new(
+                                    "storageBackupFailure",
+                                    error.detail.unwrap_or_default(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            if manager.active.read_only {
+                return (manager, user, index, warnings);
+            }
             match manager.commit(&user, &index, true) {
-                Ok(extra) => warnings.extend(extra),
+                Ok(extra) => {
+                    // Only the final location matters: recovering from a stale
+                    // locator can successfully return to the preferred directory.
+                    warnings.retain(|warning| warning.code != "storageLocationFallback");
+                    warnings.extend(extra);
+                }
                 Err(error) => {
                     warnings.push(error);
                     // A previously configured custom drive may now be offline.
@@ -267,6 +334,25 @@ impl StorageManager {
             .map(PathBuf::from)
             .unwrap_or_else(|| self.bootstrap.clone())
             .join(FOLDER)
+    }
+
+    fn align_duplicate_recovery(&self, user: &UserData) -> AppResult<()> {
+        let target = prepare(&self.recovery)?;
+        let primary = target.directory.join("state.json");
+        let previous =
+            fs::read(&primary).map_err(|e| AppError::new("storageFailure", e.to_string()))?;
+        // Recheck the live file before changing only the duplicate identities.
+        // Keep the previous state as a backup, just as with ordinary persistence.
+        if !equivalent_preferences(&decode_user(&previous)?, user) {
+            return Err(AppError::new(
+                "storageLocationConflict",
+                primary.display().to_string(),
+            ));
+        }
+        atomic(&target.directory.join("state.json.bak"), &previous)?;
+        let bytes = serde_json::to_vec_pretty(user)
+            .map_err(|e| AppError::new("storageFailure", e.to_string()))?;
+        atomic(&primary, &bytes)
     }
 
     fn locator(&self, directory: &Path, user: &UserData) -> AppResult<()> {
@@ -372,6 +458,130 @@ impl StorageManager {
 mod tests {
     use super::*;
     use crate::model::CodeRoot;
+
+    #[test]
+    fn separate_appdata_views_reuse_equivalent_root_data_and_its_identities() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().join("desktop-appdata");
+        let root = temp.path().join("代码 & (projects);");
+        fs::create_dir(&root).unwrap();
+        let (mut desktop, mut user, index, _) = StorageManager::load(base.clone());
+        user.roots.push(CodeRoot {
+            id: "desktop-root".into(),
+            path: root.to_string_lossy().into_owned(),
+        });
+        user.favorites.insert("project".into());
+        user.recent.insert("project".into(), 123);
+        desktop.commit(&user, &index, false).unwrap();
+        let mut existing = user.clone();
+        existing.profile_id = "original-profile".into();
+        existing.roots[0].id = "original-root".into();
+        let root_store = prepare(&root.join(FOLDER)).unwrap();
+        root_store.save_user(&existing).unwrap();
+        root_store.save_cache(&index).unwrap();
+
+        let (manager, restored, _, warnings) = StorageManager::load(base.clone());
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(manager.active.directory, root.join(FOLDER));
+        assert_eq!(restored.profile_id, existing.profile_id);
+        assert_eq!(restored.roots, existing.roots);
+        assert!(restored.favorites.contains("project"));
+        assert_eq!(restored.recent["project"], 123);
+        let recovery =
+            decode_user(&fs::read(base.join(FOLDER).join("state.json")).unwrap()).unwrap();
+        assert_eq!(recovery.profile_id, existing.profile_id);
+        let (manager, restarted, _, warnings) = StorageManager::load(base);
+        assert!(warnings.is_empty());
+        assert_eq!(manager.active.directory, root.join(FOLDER));
+        assert_eq!(restarted.profile_id, existing.profile_id);
+    }
+
+    #[test]
+    fn legacy_without_locator_adopts_newer_data_with_the_same_root_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().join("appdata");
+        let root = temp.path().join("code");
+        fs::create_dir(&base).unwrap();
+        fs::create_dir(&root).unwrap();
+        let mut existing = UserData::default();
+        existing.roots.push(CodeRoot {
+            id: "shared-legacy-root".into(),
+            path: root.to_string_lossy().into_owned(),
+        });
+        let mut legacy = serde_json::to_value(&existing).unwrap();
+        legacy.as_object_mut().unwrap().remove("profileId");
+        let legacy_bytes = serde_json::to_vec(&legacy).unwrap();
+        fs::write(base.join("state.json"), &legacy_bytes).unwrap();
+        existing.favorites.insert("added-after-upgrade".into());
+        existing.recent.insert("added-after-upgrade".into(), 456);
+        prepare(&root.join(FOLDER))
+            .unwrap()
+            .save_user(&existing)
+            .unwrap();
+
+        let (manager, restored, _, warnings) = StorageManager::load(base.clone());
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(manager.active.directory, root.join(FOLDER));
+        assert_eq!(restored.profile_id, existing.profile_id);
+        assert!(restored.favorites.contains("added-after-upgrade"));
+        assert_eq!(restored.recent["added-after-upgrade"], 456);
+        assert_eq!(fs::read(base.join("state.json")).unwrap(), legacy_bytes);
+    }
+
+    #[test]
+    fn divergent_profiles_remain_protected_during_automatic_startup() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().join("appdata");
+        let root = temp.path().join("code");
+        fs::create_dir(&root).unwrap();
+        let (mut manager, mut user, index, _) = StorageManager::load(base.clone());
+        user.roots.push(CodeRoot {
+            id: "root".into(),
+            path: root.to_string_lossy().into_owned(),
+        });
+        user.favorites.insert("local-favorite".into());
+        manager.commit(&user, &index, false).unwrap();
+        let mut other = user.clone();
+        other.profile_id = "another-profile".into();
+        other.favorites.clear();
+        let destination = prepare(&root.join(FOLDER)).unwrap();
+        destination.save_user(&other).unwrap();
+        let original = fs::read(destination.directory.join("state.json")).unwrap();
+
+        let (manager, restored, _, warnings) = StorageManager::load(base.clone());
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.code == "storageLocationFallback"));
+        assert_eq!(manager.active.directory, base.join(FOLDER));
+        assert_eq!(restored.profile_id, user.profile_id);
+        assert!(restored.favorites.contains("local-favorite"));
+        assert_eq!(
+            fs::read(destination.directory.join("state.json")).unwrap(),
+            original
+        );
+    }
+
+    #[test]
+    fn recovering_a_stale_locator_does_not_keep_a_false_fallback_warning() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().join("appdata");
+        let root = temp.path().join("code");
+        fs::create_dir(&root).unwrap();
+        let (mut manager, mut user, index, _) = StorageManager::load(base.clone());
+        user.roots.push(CodeRoot {
+            id: "root".into(),
+            path: root.to_string_lossy().into_owned(),
+        });
+        manager.commit(&user, &index, true).unwrap();
+        manager
+            .locator(&temp.path().join("missing"), &user)
+            .unwrap();
+
+        let (manager, restored, _, warnings) = StorageManager::load(base);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(manager.active.directory, root.join(FOLDER));
+        assert_eq!(restored.profile_id, user.profile_id);
+    }
 
     #[test]
     fn first_root_custom_location_restart_and_removal_preserve_data() {
