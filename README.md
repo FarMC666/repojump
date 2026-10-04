@@ -1,81 +1,143 @@
 # RepoJump
 
-本地开发项目的快速启动器。添加代码根目录，搜索项目，按 Enter 在新的 VS Code 窗口中打开。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-RepoJump 使用 Tauri 2、React、TypeScript 和 Vite，第一版面向 Windows 10/11 x64。无需账号，项目索引和用户设置仅保存在本机。
+A lightweight Windows launcher for local development projects. Add a code root, find a project, and press **Enter** to open it in a new VS Code window.
 
-## 使用
+Built with **Tauri 2, React, TypeScript and Vite**. Targets Windows 10/11 x64, runs locally, and needs no account.
 
-1. 安装并启动 RepoJump，点击“添加代码根目录”，例如选择 `D:\code`。
-2. 等待后台扫描，或直接搜索已经缓存的项目。
-3. 输入名称、路径、分类或技术类型，使用上下键选择，按 Enter 打开 VS Code 新窗口。
-4. 收藏常用项目；通过左侧“最近打开”找到之前打开的项目。
+## Getting started
 
-项目菜单支持终端、资源管理器、复制路径、仓库网页、收藏和分类覆盖。根目录外的项目、无标记的普通目录及 monorepo 子项目可通过“手动添加项目”加入。
+1. Install and launch RepoJump.
+2. Select **Add code root** and choose a folder such as `D:\code`.
+3. RepoJump scans in the background. Search by project name, path, category or technology.
+4. Use the arrow keys to select a project, then press **Enter**.
 
-“添加代码根目录”会扫描所选目录中的项目，例如选择 `D:\code` 后继续遍历 `apps`、`web`、`mods`，找到具体项目后停止深入。“手动添加项目”只添加选中的文件夹；如果没有检测到项目标记，会提供“扫描目录中的项目”和“仅添加此文件夹”两种方式。已经手动添加的分类目录也可以通过项目菜单中的“扫描目录中的项目”改为根目录，收藏、最近记录和分类覆盖保留。
+```text
+D:\code
+├── apps
+│   ├── desktop-tool
+│   └── another-app
+├── web
+│   └── website
+└── mods
+    └── game-mod
+```
 
-添加或修改根目录后，主列表切回全部项目并清空旧查询。搜索支持 Windows 路径的两种分隔符，例如 `D:\code\mods` 和 `D:/code/mods`。
+Choosing `D:\code` traverses `apps`, `web` and `mods` to find their projects. These container folders also supply automatic categories. Adding or changing a root switches back to All projects and clears the previous query.
 
-### 快捷键
+Use **Add single project** for projects outside your roots, ordinary folders without project markers, or nested monorepo projects. It adds only the selected folder. If no markers are found, RepoJump offers to scan the folder as a root instead. An existing manual entry can also be converted through **Scan projects inside** in its menu, preserving favorites, recent history and category overrides.
 
-| 快捷键 | 操作 |
+## Features
+
+- Instant local search, including fuzzy name matching and multiple search terms. Windows paths work with either `\` or `/`.
+- Favorites pinned above other projects; Recent maintained independently of VS Code.
+- Project menus for VS Code, Terminal, Explorer, copying paths, repository links and category overrides.
+- Background discovery with a cached index, configurable depth and manual rescanning.
+- Configurable global shortcut, tray menu and single-instance activation.
+- Dark, light and system themes; English and Simplified Chinese.
+- Local JSON storage with backups and a configurable data location.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
 | --- | --- |
-| Ctrl+K | 聚焦搜索并选中当前查询 |
-| ↑ / ↓ | 选择项目 |
-| Enter | 在 VS Code 新窗口打开 |
-| Esc | 关闭菜单或弹窗；清空查询；收起快捷启动窗口 |
-| Ctrl+Alt+P | 全局唤起，清空查询并聚焦搜索 |
+| Ctrl+K | Focus search and select the current query |
+| Up / Down | Select a project |
+| Enter | Open a new VS Code window |
+| Esc | Close a menu/dialog, clear the query, or hide the quick-launch window |
+| Ctrl+Alt+P | Show RepoJump, clear the query and focus search |
 
-全局快捷键可在设置中修改或关闭。冲突会显示提示，不抢占其他程序的快捷键。默认关闭窗口后仍在托盘中运行；通过托盘菜单退出，或在设置中关闭驻留。通过全局快捷键唤起后，成功打开 VS Code 会自动收起窗口；普通主窗口会保留。
+The global shortcut can be changed or disabled in Settings. A conflict keeps the previous setting and shows an error. RepoJump must be running to receive the shortcut.
 
-## 项目发现
+Closing the window keeps the application in the tray by default. Exit through the tray menu, or disable this behavior in Settings. A successful VS Code launch hides a window opened through the global shortcut; a normally opened window stays visible.
 
-识别 `.git`（目录或文件）、`package.json`、`pnpm-workspace.yaml`、`yarn.lock`、`package-lock.json`、`pyproject.toml`、`requirements.txt`、`Cargo.toml`、`go.mod`、`*.sln`、`*.slnx`、`*.csproj`、`pom.xml`、`build.gradle`、`build.gradle.kts`、`composer.json`、`Gemfile` 和 `*.code-workspace`。
+The tray menu follows the application's language, including Follow system, and updates when you save a language change.
 
-一个项目可以具有多个技术标签，例如 JavaScript、TypeScript、React 和 Vite。分类来自代码根目录下第一层容器目录：`D:\code\apps\project` 自动归入 Apps。直接位于根目录中或根目录外的手动项目默认未分类。重叠根目录使用最具体的根目录分类，项目不会重复显示。
+## Project discovery
 
-默认扫描深度为 4，根目录记作第 0 层，可在设置中调整为 1–8。**发现父项目后停止向下扫描**，子项目需要手动添加。目录符号链接和 junction 不参与递归；`node_modules`、`.git`、`dist`、`build`、`target`、`.next`、`.cache`、虚拟环境等生成目录会被跳过。
+Recognized markers include:
 
-启动先加载缓存，再后台刷新。没有文件监听；新建项目或修改项目标记后，可点击“重新扫描”。不可访问的根目录保留缓存，失效项目标记不可用。删除根目录或手动记录只改变索引来源，不删除项目文件。
+```text
+.git (directory or worktree file)
+package.json       pnpm-workspace.yaml   yarn.lock       package-lock.json
+pyproject.toml     requirements.txt      Cargo.toml      go.mod
+*.sln              *.slnx                *.csproj        *.code-workspace
+pom.xml            build.gradle         build.gradle.kts
+composer.json      Gemfile
+```
 
-## 打开方式
+Projects can carry multiple labels, such as JavaScript, TypeScript, React and Vite. Other detectors cover Next.js, Python, Rust, Go, .NET, Maven/Gradle, PHP/Composer and Ruby. A damaged manifest does not block discovery.
 
-通过项目菜单中的“VS Code 启动内容”，可以为每个项目分别保存以下选项。Enter、双击和打开按钮都会应用该项目的配置。
+The default maximum depth is **4**, with the root at depth **0**. Settings allows 1–8. **Discovery stops below a detected project**; add nested projects manually. Symbolic links and junctions are not traversed. Generated directories such as `node_modules`, `.git`, `dist`, `build`, `target`, `.next`, virtual environments, `vendor` and `.repojump` are skipped.
 
-- **默认**：使用 VS Code 原有的启动行为。
-- **指定文件**：输入项目内文件的相对路径（例如 `index.html` 或 `src/main.ts`），也可以通过原生文件选择器选择。打开项目时同时打开并聚焦该文件。只支持项目内已存在的文件。
-- **Git Graph**：打开项目后显示 Git Graph 视图。需要已安装并启用 `mhutchie.git-graph`；首次使用时，RepoJump 会从随应用提供的本地 VSIX 安装配套扩展。此模式使用应用数据目录中的独立工作区文件，VS Code 会显示为工作区窗口，不修改项目文件。只有本次 RepoJump 请求会触发自动显示，手动打开项目或恢复已消费的工作区不会重复执行。
+Categories come from the first container folder below the most specific matching root. Direct children of a root, the root itself, and manual projects outside roots are Uncategorized. Overlapping roots and manual sources do not duplicate projects.
 
-文件失效、扩展安装失败、Git Graph 不可用或响应超时，项目仍会打开并显示提示。原配置保留，方便修复；最近打开记录仍会保存。恢复“默认”会移除此项目的启动内容覆盖。
+Startup displays the cache before refreshing it. There is no filesystem watcher: use **Rescan** after creating projects or changing markers. Unreadable roots retain cached entries, and missing folders are marked unavailable. Removing a root or manual entry only changes the index sources.
 
-- VS Code：使用 `Code.exe` 的 `--new-window` 参数，项目路径作为独立参数传递。优先使用设置中的路径，其次解析 PATH 中的 `code`，再检查注册表和常见安装位置。支持空格、中文及特殊字符路径。
-- 终端：自动模式优先 Windows Terminal，回退至 PowerShell。PowerShell 通过进程工作目录进入项目，使用 `-NoProfile -NoExit`，不把项目路径插入脚本。带分号的路径走 PowerShell，避免 Windows Terminal 的命令分隔歧义。
-- 仓库网页：读取 `origin`，支持 HTTP/S、标准 SSH、scp 风格 URL 和 Azure DevOps SSH 地址转换。不依赖 GitHub，也不执行网络 Git 操作。
+## Opening projects
 
-Git 分支、修改状态和 origin 按需读取并短时缓存，需要本机可用的 Git。读取失败或超时只影响 Git 信息，发现和打开项目仍可使用。RepoJump 不修改项目内容，不执行安装依赖、pull、commit 或分支切换。
+**VS Code:** RepoJump launches `Code.exe` with `--new-window` and the project path as separate arguments. It checks the configured executable first, then PATH, registry entries and common installation locations. Set a path in Settings if automatic detection fails. Spaces, Chinese characters and shell punctuation remain part of the path.
 
-## 本地数据
+Use **VS Code startup content** in the project menu to save one option per project. Enter, double-click and the Open button all apply it:
 
-位置可在设置中查看，默认是 `%LOCALAPPDATA%\com.farmc.repojump`。
+- **Default:** use VS Code's normal startup behavior.
+- **File:** enter a project-relative path, such as `index.html`, or use the native file picker. The file must exist inside the project and becomes the active editor when launched.
+- **Git Graph:** show Git Graph in the new project window. Install and enable `mhutchie.git-graph` first; RepoJump automatically installs its bundled companion extension on first use. This mode opens a unique workspace stored in application data without changing project files. Only the current RepoJump request triggers Git Graph; manually opening a project or restoring a consumed workspace does not repeat it.
 
-- `state.json`：根目录、手动项目、收藏、最近记录、分类与 VS Code 启动内容覆盖和设置。
-- `state.json.bak`：上一个有效配置，用于恢复。
-- `index.json`：可重建的项目发现缓存。
-- `vscode-launches/`：Git Graph 模式的工作区文件与一次性启动请求。请求在消费或过期后清理，工作区文件保留以支持 VS Code 恢复；这些工作区不会加入 VS Code 最近打开列表。
+An unavailable file, installation failure, missing Git Graph or timeout still leaves the project open and shows a warning. The saved option remains, and Recent is updated. Selecting Default removes the project's override.
 
-配置通过原子替换保存，带版本号。配置损坏时保留原文件，并优先从备份恢复；没有有效备份时明确提示并使用新配置。来自更新版本的配置会以只读方式保护，不覆盖原文件。应用升级使用固定数据目录，安装程序不清空这些数据。
+**Terminal:** Automatic mode tries Windows Terminal, then PowerShell. PowerShell uses the process working directory and `-NoProfile -NoExit`; project paths are never inserted into a shell script. Paths containing semicolons use PowerShell to avoid Windows Terminal command-separator ambiguity.
 
-## 开发
+**Repository:** The project menu reads Git's `origin` and converts supported HTTP/S, SSH and scp-style URLs to browser links while preserving the host. GitHub, GitLab and other hosts are supported; Azure DevOps SSH URLs have a dedicated conversion.
 
-需要 Node.js 22.12+、Rust stable MSVC、Microsoft C++ Build Tools（Desktop development with C++，含 Windows SDK）和 WebView2。[Tauri Windows 前置要求](https://v2.tauri.app/start/prerequisites/)
+Git metadata is optional and read on demand with a short cache and process timeout. Git failures do not prevent discovery or launching. RepoJump does not install dependencies, change branches, or run pull, commit or push commands. It only writes its own application data.
+
+## Local data
+
+By default, RepoJump creates a **hidden `.repojump` folder in the first code root you added**:
+
+```text
+D:\code\.repojump\
+├── state.json
+├── state.json.bak
+└── index.json
+```
+
+With no root, or when that location is unavailable, the fallback is:
+
+```text
+%LOCALAPPDATA%\com.farmc.repojump\.repojump
+```
+
+Later roots do not change the automatic location. Removing the first root selects the next root, or the fallback if none remain. Changing the first root transfers the data to its new path.
+
+In **Settings → Local data**, choose **Custom folder**, select its parent directory, and save. RepoJump creates `.repojump` inside that directory and transfers your roots, manual entries, favorites, recent history, settings, category overrides and cache. **Current data folder** shows the actual active path. Returning to Automatic uses the first root again. Canceling Settings leaves the location unchanged.
+
+- `state.json` holds user state, including per-project VS Code startup overrides, with a schema version and profile identity.
+- `state.json.bak` retains the previous valid state.
+- `index.json` is a rebuildable project cache.
+
+The original `%LOCALAPPDATA%\com.farmc.repojump` directory keeps a small `storage-location.json` locator and a `.repojump` recovery copy. This lets RepoJump start when a code drive is disconnected. Changes made during fallback are retained when the configured drive returns and RepoJump restarts. WebView2's own runtime data remains in the system application-data location.
+
+Git Graph workspaces remain under `vscode-launches/` in that original application-data directory even when preferences move elsewhere. Requests and receipts are cleaned after consumption or expiry; workspace files remain for window restoration and are excluded from VS Code's recently opened list.
+
+Migration writes the new data before switching the locator and retains the old copy. A destination belonging to another profile is rejected. Existing AppData-only installations are migrated automatically. Configuration files use atomic replacement; damaged files are preserved and valid backups are recovered with a visible warning. Unsupported newer schemas are protected from writes. Installer upgrades retain application data.
+
+If separate startup environments migrated the same configuration twice, Automatic storage reuses the existing root data when the user records match. Different records and custom-location profile conflicts remain protected. A fallback warning appears only while the preferred location is actually unavailable.
+
+The `.repojump` directory has the Windows Hidden attribute. Enable **Hidden items** in Explorer to inspect it. If a code root is itself a Git repository, add `.repojump/` to your own ignore rules to keep local preferences out of Git; RepoJump does not edit project `.gitignore` files.
+
+## Development
+
+Requirements: Node.js 22.12+, Rust stable with the MSVC toolchain, Microsoft C++ Build Tools with **Desktop development with C++** and a Windows SDK, and WebView2. See the [official Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```powershell
 npm ci
 npm run desktop
 ```
 
-仅执行 `npm run dev` 是浏览器开发页面，会提示使用桌面程序；浏览器页面不会伪造本地项目能力。
+`npm run dev` starts only the browser frontend. Local project access requires the desktop application; the browser view does not simulate native functionality.
 
 ```powershell
 npm run typecheck
@@ -87,8 +149,8 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 npm run package
 ```
 
-安装包位于 `src-tauri/target/release/bundle/nsis/`，打包工具缓存在 `src-tauri/target/.tauri/`。使用当前用户安装，不需要管理员权限。缺少 WebView2 时安装程序会下载其引导程序，因此首次安装可能需要联网；安装后核心功能不依赖网络。仓库不包含代码签名证书，默认构建的安装包未签名。[Tauri Windows 安装包说明](https://v2.tauri.app/distribute/windows-installer/)
+The Windows x64 NSIS installer is generated in `src-tauri/target/release/bundle/nsis/`. Packaging tools are cached in `src-tauri/target/.tauri/`. Installation is per user and does not require administrator privileges. If WebView2 is missing, the installer downloads its bootstrapper; that step requires internet access. The core application runs offline after installation. Builds are unsigned unless you supply signing credentials. See [Tauri's Windows installer documentation](https://v2.tauri.app/distribute/windows-installer/).
 
-模块边界见 [架构说明](docs/architecture.md)，实际检查与桌面验收范围见 [验收记录](docs/validation.md)。
+See [architecture](docs/architecture.md) for module boundaries and [validation records](docs/validation.md) for the checks and platforms actually exercised.
 
-配套扩展源代码位于 `vscode-helper/`。`npm run build:helper` 使用 Node.js 内置库生成 `src-tauri/resources/repojump-vscode.vsix`，无需额外打包依赖。开发启动、生产构建和直接 Cargo 构建都会生成此资源，安装包会包含它。
+The companion extension lives in `vscode-helper/`. `npm run build:helper` generates `src-tauri/resources/repojump-vscode.vsix` using Node.js built-in libraries. Desktop development, production builds and direct Cargo builds generate the resource; the installer bundles it for offline installation.

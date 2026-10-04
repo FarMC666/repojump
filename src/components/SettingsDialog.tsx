@@ -58,7 +58,12 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
           {draft.globalShortcut !== null && <div className="input-actions"><input id="shortcut" aria-label={t('shortcut')} value={draft.globalShortcut} placeholder={t('shortcutPlaceholder')} onChange={e => set('globalShortcut', e.target.value)} onKeyDown={record} /><button type="button" className="secondary-button" onClick={() => { setRecording(true); document.getElementById('shortcut')?.focus(); }}>{t(recording ? 'recording' : 'capture')}</button></div>}
           <p>{t('shortcutHint')}</p><label className="check-label"><input type="checkbox" checked={draft.closeToTray} onChange={e => set('closeToTray', e.target.checked)} />{t('closeToTray')}</label>
         </section>
-        <section><h3>{t('localData')}</h3><p>{t('localDataHint')}</p><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump 0.1.1</p></section>
+        <section><h3>{t('localData')}</h3><p>{t('localDataHint')}</p>
+          <div className="setting-grid"><label htmlFor="data-mode">{t('dataLocation')}</label><select id="data-mode" disabled={busy} value={draft.dataLocation === null ? 'auto' : 'custom'} onChange={e => set('dataLocation', e.target.value === 'auto' ? null : '')}><option value="auto">{t('dataAutomatic')}</option><option value="custom">{t('dataCustom')}</option></select></div>
+          <p>{t('dataAutomaticHint')}</p>
+          {draft.dataLocation !== null && <><label htmlFor="data-parent">{t('dataParent')}</label><div className="input-actions"><input id="data-parent" required disabled={busy} value={draft.dataLocation} onChange={e => set('dataLocation', e.target.value)} /><button type="button" className="secondary-button" disabled={busy} aria-label={t('chooseDataFolder')} onClick={async () => { try { const path = await api.pickDataLocation(); if (typeof path === 'string') set('dataLocation', path); } catch (e) { setError(e); } }}>{t('chooseFolder')}</button></div><p>{t('dataCustomHint')}</p></>}
+          <label>{t('dataCurrent')}</label><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump 0.1.4</p>
+        </section>
       </div>
       <div className="dialog-footer">{error !== null && <p className="form-error" role="alert">{errorText(error, t)}</p>}<button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="primary-button" disabled={busy || snapshot.storageReadOnly}>{t('save')}</button></div>
     </form>

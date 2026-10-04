@@ -13,7 +13,8 @@
   --accent: #3d5cb0; --accent-fill: #4667c6; --accent-text: #fff; --focus: #5678d0;
   --star: #a37324; --danger: #b64545; --shadow: 0 12px 40px #23334c20; color-scheme: light;
 }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; overscroll-behavior: none; }
+html, body { overscroll-behavior: none; }
 body { margin: 0; }
 button, input, select { font: inherit; }
 button { color: inherit; cursor: pointer; }

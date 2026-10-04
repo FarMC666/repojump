@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub enum PickerKind {
     Directory,
     CodeRoot,
+    DataLocation,
     Code,
     ProjectFile,
 }
@@ -63,6 +64,15 @@ fn select(kind: PickerKind, initial_folder: Option<PathBuf>) -> AppResult<Option
                     .map_err(failure)?;
                 dialog
                     .SetOkButtonLabel(w!("Scan folder / 扫描目录"))
+                    .map_err(failure)?;
+            }
+            PickerKind::DataLocation => {
+                options |= FOS_PICKFOLDERS;
+                dialog
+                    .SetTitle(w!("Choose data folder / 选择数据存储目录"))
+                    .map_err(failure)?;
+                dialog
+                    .SetOkButtonLabel(w!("Choose folder / 选择目录"))
                     .map_err(failure)?;
             }
             PickerKind::Code => {

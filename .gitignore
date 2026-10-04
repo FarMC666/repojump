@@ -6,6 +6,7 @@ src-tauri/resources/*.vsix
 .tools/
 .tauri/
 .validation/
+.repojump/
 *.log
 .env
 .env.*

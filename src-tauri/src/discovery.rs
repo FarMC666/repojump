@@ -3,6 +3,7 @@ use crate::model::{CodeRoot, ProjectRecord, ScanIssue};
 use std::path::Path;
 
 const IGNORED: &[&str] = &[
+    ".repojump",
     "node_modules",
     ".git",
     "dist",
@@ -161,13 +162,19 @@ mod tests {
     #[test]
     fn parent_stop_ignore_depth_and_manual_child() {
         let temp = tempfile::tempdir().unwrap();
-        for dir in ["apps/parent/child", "node_modules/ignored", "a/b/c/deep"] {
+        for dir in [
+            "apps/parent/child",
+            "node_modules/ignored",
+            ".repojump/ignored",
+            "a/b/c/deep",
+        ] {
             fs::create_dir_all(temp.path().join(dir)).unwrap();
         }
         for file in [
             "apps/parent/package.json",
             "apps/parent/child/Cargo.toml",
             "node_modules/ignored/go.mod",
+            ".repojump/ignored/go.mod",
             "a/b/c/deep/go.mod",
         ] {
             fs::write(temp.path().join(file), "{}").unwrap();

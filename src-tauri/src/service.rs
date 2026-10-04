@@ -1,10 +1,9 @@
 use crate::{
+    data_location::StorageManager,
     discovery::{self, ScanEvent},
     git, launcher,
     model::*,
-    paths, settings,
-    storage::Storage,
-    vscode_startup,
+    paths, settings, vscode_startup,
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -17,6 +16,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub struct Inner {
+    pub storage: StorageManager,
     pub user: UserData,
     pub index: IndexCache,
     pub revision: u64,
@@ -29,7 +29,7 @@ pub struct Inner {
 
 pub struct AppState {
     pub inner: Mutex<Inner>,
-    pub storage: Storage,
+    startup_directory: PathBuf,
     git_cache: Mutex<HashMap<String, (Instant, GitMetadata)>>,
     launches: Mutex<HashSet<String>>,
 }
@@ -96,11 +96,14 @@ fn promote_manual_source(user: &mut UserData, path: String) {
 
 impl AppState {
     pub fn new(directory: PathBuf) -> Self {
-        let (storage, user, mut index, warnings) = Storage::load(directory);
-        vscode_startup::cleanup_expired(&storage.directory);
+        let (storage, user, mut index, warnings) = StorageManager::load(directory);
+        let startup_directory = storage.bootstrap_directory().to_path_buf();
+        vscode_startup::cleanup_expired(&startup_directory);
         reconcile(&user, &mut index);
         Self {
+            startup_directory,
             inner: Mutex::new(Inner {
+                storage,
                 user,
                 index,
                 revision: 1,
@@ -110,7 +113,6 @@ impl AppState {
                 warnings,
                 active_shortcut: None,
             }),
-            storage,
             git_cache: Mutex::new(HashMap::new()),
             launches: Mutex::new(HashSet::new()),
         }
@@ -146,8 +148,13 @@ impl AppState {
             settings: inner.user.settings.clone(),
             scan: inner.scan.clone(),
             warnings: inner.warnings.clone(),
-            data_directory: self.storage.directory.to_string_lossy().into_owned(),
-            storage_read_only: self.storage.read_only,
+            data_directory: inner
+                .storage
+                .active
+                .directory
+                .to_string_lossy()
+                .into_owned(),
+            storage_read_only: inner.storage.active.read_only,
         }
     }
 
@@ -166,15 +173,25 @@ impl AppState {
             let mut user = inner.user.clone();
             let mut index = inner.index.clone();
             edit(&mut user, &mut index)?;
-            self.storage.save_user(&user)?;
             reconcile(&user, &mut index);
+            let relocate = user.roots != inner.user.roots
+                || user.settings.data_location != inner.user.settings.data_location;
+            let warnings = inner.storage.commit(&user, &index, relocate)?;
+            if relocate {
+                inner
+                    .warnings
+                    .retain(|warning| warning.code != "storageLocationFallback");
+            }
+            for warning in warnings {
+                add_warning(&mut inner, warning);
+            }
             inner.user = user;
             inner.index = index;
             inner.revision += 1;
             if rescan {
                 inner.epoch += 1;
             }
-            if let Err(e) = self.storage.save_cache(&inner.index) {
+            if let Err(e) = inner.storage.save_cache(&inner.index) {
                 add_warning(&mut inner, e);
             }
             self.snapshot_locked(&inner)
@@ -323,20 +340,35 @@ impl AppState {
 
     pub fn save_settings(&self, app: &AppHandle, next: Settings) -> AppResult<AppSnapshot> {
         settings::validate(&next)?;
-        let (snapshot, rescan) = {
+        let (mut snapshot, rescan) = {
             let mut inner = self.inner.lock().unwrap();
             let previous = inner.user.settings.clone();
             let previous_active = inner.active_shortcut.clone();
             settings::change_shortcut(app, &previous_active, &next.global_shortcut)?;
             let mut user = inner.user.clone();
             user.settings = next;
-            if let Err(e) = self.storage.save_user(&user) {
-                if let Err(rollback) =
-                    settings::change_shortcut(app, &user.settings.global_shortcut, &previous_active)
-                {
-                    add_warning(&mut inner, rollback);
+            let index = inner.index.clone();
+            let relocate = previous.data_location != user.settings.data_location;
+            let warnings = match inner.storage.commit(&user, &index, relocate) {
+                Ok(warnings) => warnings,
+                Err(e) => {
+                    if let Err(rollback) = settings::change_shortcut(
+                        app,
+                        &user.settings.global_shortcut,
+                        &previous_active,
+                    ) {
+                        add_warning(&mut inner, rollback);
+                    }
+                    return Err(e);
                 }
-                return Err(e);
+            };
+            if relocate {
+                inner
+                    .warnings
+                    .retain(|warning| warning.code != "storageLocationFallback");
+            }
+            for warning in warnings {
+                add_warning(&mut inner, warning);
             }
             let rescan = previous.scan_depth != user.settings.scan_depth;
             inner.active_shortcut = user.settings.global_shortcut.clone();
@@ -350,6 +382,14 @@ impl AppState {
             }
             (self.snapshot_locked(&inner), rescan)
         };
+        if let Err(error) = app
+            .state::<crate::tray_menu::TrayMenu>()
+            .apply(&snapshot.settings.language)
+        {
+            let mut inner = self.inner.lock().unwrap();
+            add_warning(&mut inner, error);
+            snapshot = self.snapshot_locked(&inner);
+        }
         let _ = app.emit("index-updated", &snapshot);
         if rescan {
             request_scan(app);
@@ -463,7 +503,7 @@ impl AppState {
                 LaunchTarget::Vscode => {
                     warnings = vscode_startup::open(
                         app,
-                        &self.storage.directory,
+                        &self.startup_directory,
                         &path,
                         &settings,
                         &startup,
@@ -648,7 +688,7 @@ fn scan_worker(app: AppHandle) {
         if inner.epoch == epoch {
             let current_user = inner.user.clone();
             reconcile(&current_user, &mut inner.index);
-            if let Err(e) = state.storage.save_cache(&inner.index) {
+            if let Err(e) = inner.storage.save_cache(&inner.index) {
                 add_warning(&mut inner, e);
             }
         }

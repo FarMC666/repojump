@@ -37,6 +37,7 @@ export function App() {
   const lastLaunch = useRef({ key: '', time: 0 });
   const settings = snapshot?.settings ?? defaultSettings;
   const language = locale(settings);
+  const hasSnapshot = snapshot !== null;
   const t = useMemo(() => translator(language), [language]);
   const report = useCallback((error: unknown) => setToast({ text: errorText(error, t), error: true }), [t]);
   const update = useCallback((next: AppSnapshot) => setSnapshot(previous => !previous || next.revision >= previous.revision ? next : previous), []);
@@ -68,6 +69,11 @@ export function App() {
     })();
     return () => { cancelled = true; cleanups.forEach(cleanup => cleanup()); };
   }, [retry, update]);
+
+  useEffect(() => {
+    if (!hasSnapshot || !isDesktop()) return;
+    void api.syncTrayLanguage(language).catch(report);
+  }, [language, hasSnapshot, report]);
 
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -190,7 +196,7 @@ export function App() {
           return <button key={item.kind} className={`nav-item ${view.kind === item.kind ? 'active' : ''}`} aria-current={view.kind === item.kind ? 'page' : undefined} onClick={() => chooseView(item)}><Icon size={17} /><span>{t(item.kind)}</span><span className="nav-count">{count}</span></button>;
         })}
         <div className="nav-label">{t('categories')}</div>{categories.map(category => <button key={category ?? '__uncategorized'} className={`nav-item ${view.kind === 'category' && view.category === category ? 'active' : ''}`} onClick={() => chooseView({ kind: 'category', category })}><Folder size={16} /><span>{categoryName(category)}</span><span className="nav-count">{snapshot!.projects.filter(p => p.category === category).length}</span></button>)}
-      </nav><div className="sidebar-bottom"><button className="nav-item" title={t('addRootHint')} onClick={() => { void addRoot(); }} disabled={!snapshot || snapshot.storageReadOnly || pending}><FolderPlus size={17} /><span>{t('addRoot')}</span></button><div className="sidebar-version">LOCAL · v0.1.1</div></div>
+      </nav><div className="sidebar-bottom"><button className="nav-item" title={t('addRootHint')} onClick={() => { void addRoot(); }} disabled={!snapshot || snapshot.storageReadOnly || pending}><FolderPlus size={17} /><span>{t('addRoot')}</span></button><div className="sidebar-version">LOCAL · v0.1.4</div></div>
       </aside>
       <main className="project-main">
         <div className="list-toolbar"><div><h1>{query ? t('searching') : viewTitle}</h1><span>{results.length} {t('projects')}</span></div><button className="text-button" disabled={!snapshot} onClick={() => { void run(api.rescan); }}><RefreshCw size={14} className={snapshot?.scan.running ? 'spinning' : ''} />{t('rescan')}</button></div>

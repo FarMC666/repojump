@@ -22,9 +22,15 @@ The primary add action registers a code root. A manual folder selection first ch
 
 Configuration writes preserve a valid backup before atomic replacement. Corrupt primary files are quarantined; a valid backup is recovered with a visible warning. A newer unsupported user schema blocks writes instead of replacing it with defaults. Cache failures are nonfatal and do not discard user settings.
 
-Storage resolves the actual application data directory after creating it. This keeps temporary and destination paths on the same volume when a Windows packaged host redirects AppData or when a directory is a junction.
+Storage resolves the actual data directory after creating it. The locator's parent is anchored to the newly created recovery folder's actual parent, since a packaged host can redirect new writes while reads of an existing AppData directory still resolve to the original volume. This keeps temporary and destination paths on the same volume. Legacy state is read from its original logical path before migration.
 
 The bundle identifier `com.farmc.repojump` is also the stable data-directory identity. Keep it fixed across releases.
+
+`data_location::StorageManager` owns the active store inside the service mutex, so relocation and scan writes cannot race. Automatic storage uses `.repojump` under the first root in insertion order, or under the default local app-data directory when there are no accessible roots. A custom setting selects its parent directory; Windows marks the child folder hidden, and discovery ignores it.
+
+The original local app-data directory retains `storage-location.json` and a `.repojump` recovery copy. Upgrades read the legacy AppData state before moving it. A relocation checks the destination profile ID, writes state and cache, then atomically replaces the locator before changing the active store. Old copies remain; another profile or an invalid destination is never silently overwritten. Primary-save success and recovery-copy failure are reported separately.
+
+An offline location falls back to the recovery copy and updates the locator. The next startup retries the configured location using the latest fallback state, preventing a reconnected drive's stale copy from reverting preferences. User mutations also fall back if the active drive disappears while the application is running. Unsupported schema versions remain read-only.
 
 ## Opening and desktop lifecycle
 
@@ -35,6 +41,8 @@ Per-project VS Code startup overrides are user metadata, separate from the rebui
 Git Graph opening installs only the bundled `farmc.repojump-startup` companion VSIX, using the configured editor's Node CLI and a 30-second process deadline. It never installs Git Graph. Current Windows installations locate `cli.js` from the editor's own `bin/code.cmd`; the shim is read as data, never executed. The CLI's Electron Node environment is scoped to that process and removed for editor window launches.
 
 Each Graph launch creates a unique single-folder `.code-workspace` under application data. Its workspace-only setting points to a sibling request with a UUID, exact project path and 15-second expiration. The companion activates after startup, verifies that the request matches its window's only local folder, atomically claims it, activates Git Graph and invokes `git-graph.view` with the project's `rootUri`. It respects workspace trust and never accepts arbitrary commands. A matching atomic receipt reports success or a localized failure to Rust. Only transient request/receipt files are removed; workspace files remain usable for restore, without adding generated entries to VS Code's Recent list.
+
+The launch directory uses `StorageManager`'s resolved bootstrap path and stays fixed when the active preference store moves. Startup overrides are transferred and mirrored with other user metadata. Equivalent-profile recovery compares these overrides too, so different startup preferences cannot be mistaken for duplicate configurations.
 
 Startup-content failures preserve an already opened window or fall back to one ordinary project launch before any workspace is opened. `LaunchResult.warnings` reports all startup and Recent-save warnings together. Quick launch remains visible when warnings need attention.
 
