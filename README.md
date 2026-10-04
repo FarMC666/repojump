@@ -52,7 +52,7 @@ The global shortcut can be changed or disabled in Settings. A conflict keeps the
 
 Closing the window keeps the application in the tray by default. Exit through the tray menu, or disable this behavior in Settings. A successful VS Code launch hides a window opened through the global shortcut; a normally opened window stays visible.
 
-The tray menu follows the application's language, including Follow system, and updates when you save a language change.
+Theme and language changes in Settings apply and save immediately, even if you cancel. Other settings still require Save. The tray menu follows the application's language, including Follow system, and updates as soon as the language changes.
 
 ## Project discovery
 

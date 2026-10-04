@@ -19,7 +19,17 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
   const [error, setError] = useState<unknown>(null);
   const [recording, setRecording] = useState(false);
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setDraft(previous => ({ ...previous, [key]: value }));
+  const setAppearance = async <K extends 'theme' | 'language'>(key: K, value: Settings[K]) => {
+    if (busy || snapshot.storageReadOnly) return;
+    setBusy(true); setError(null);
+    try {
+      const next = await api.appearance({ theme: snapshot.settings.theme, language: snapshot.settings.language, [key]: value });
+      setDraft(previous => ({ ...previous, theme: next.settings.theme, language: next.settings.language }));
+      update(next);
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
   const save = async () => {
+    if (busy || snapshot.storageReadOnly) return;
     setBusy(true); setError(null);
     try { update(await api.settings({ ...draft, vscodePath: draft.vscodePath?.trim() || null, globalShortcut: draft.globalShortcut?.trim() || null, defaultVscodeStartup: draft.defaultVscodeStartup.kind === 'file' ? { kind: 'file', path: draft.defaultVscodeStartup.path.trim() } : draft.defaultVscodeStartup })); onClose(); }
     catch (e) { setError(e); } finally { setBusy(false); }
@@ -46,9 +56,9 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
           <button type="button" className="secondary-button" onClick={() => { void addRoot(); }} disabled={busy || snapshot.storageReadOnly}><FolderPlus size={16} />{t('addRoot')}</button>
         </section>
         <section><h3>{t('appearance')}</h3><div className="setting-grid">
-          <label htmlFor="theme">{t('theme')}</label><select id="theme" value={draft.theme} onChange={e => set('theme', e.target.value as Settings['theme'])}><option value="dark">{t('dark')}</option><option value="light">{t('light')}</option><option value="system">{t('system')}</option></select>
-          <label htmlFor="language">{t('language')}</label><select id="language" value={draft.language} onChange={e => set('language', e.target.value as Settings['language'])}><option value="system">{t('system')}</option><option value="zh-CN">简体中文</option><option value="en">English</option></select>
-        </div></section>
+          <label htmlFor="theme">{t('theme')}</label><select id="theme" disabled={busy || snapshot.storageReadOnly} value={draft.theme} onChange={e => { void setAppearance('theme', e.target.value as Settings['theme']); }}><option value="dark">{t('dark')}</option><option value="light">{t('light')}</option><option value="system">{t('system')}</option></select>
+          <label htmlFor="language">{t('language')}</label><select id="language" disabled={busy || snapshot.storageReadOnly} value={draft.language} onChange={e => { void setAppearance('language', e.target.value as Settings['language']); }}><option value="system">{t('system')}</option><option value="zh-CN">简体中文</option><option value="en">English</option></select>
+        </div><p>{t('appearanceHint')}</p></section>
         <section><h3>{t('discovery')}</h3><div className="setting-grid"><label htmlFor="depth">{t('scanDepth')}</label><input id="depth" type="number" min={1} max={8} required value={draft.scanDepth} onChange={e => set('scanDepth', Number(e.target.value))} /></div><p>{t('depthHint')}</p></section>
         <section><h3>{t('launching')}</h3><label htmlFor="code-path">{t('codePath')}</label><div className="input-actions"><input id="code-path" placeholder={t('autoDetect')} value={draft.vscodePath ?? ''} onChange={e => set('vscodePath', e.target.value || null)} /><button type="button" className="secondary-button" onClick={async () => { try { const path = await api.pickCode(); if (typeof path === 'string') set('vscodePath', path); } catch (e) { setError(e); } }}>{t('browse')}</button></div>
           {draft.vscodePath && <button type="button" className="text-button" onClick={() => set('vscodePath', null)}>{t('reset')}</button>}

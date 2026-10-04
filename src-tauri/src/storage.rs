@@ -30,8 +30,16 @@ pub(crate) fn decode_user(bytes: &[u8]) -> AppResult<UserData> {
 }
 
 pub(crate) fn atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
-    let mut file =
-        AtomicWriteFile::open(path).map_err(|e| AppError::new("storageFailure", e.to_string()))?;
+    // Windows can redirect individual existing files even when their parent
+    // directory resolves to the original volume. Create the temporary sibling
+    // beside the actual destination so replacement stays on the same volume.
+    let destination = match dunce::canonicalize(path) {
+        Ok(actual) => actual,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_path_buf(),
+        Err(error) => return Err(AppError::new("storageFailure", error.to_string())),
+    };
+    let mut file = AtomicWriteFile::open(&destination)
+        .map_err(|e| AppError::new("storageFailure", e.to_string()))?;
     file.write_all(bytes)
         .map_err(|e| AppError::new("storageFailure", e.to_string()))?;
     file.commit()
@@ -256,6 +264,29 @@ mod tests {
             restored.vscode_startup_overrides["existing-project"],
             VscodeStartup::GitGraph
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_replacement_follows_individually_redirected_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let actual = temp.path().join("actual");
+        let logical = temp.path().join("logical");
+        fs::create_dir(&actual).unwrap();
+        fs::create_dir(&logical).unwrap();
+        let destination = actual.join("state.json");
+        let alias = logical.join("state.json");
+        atomic(&destination, b"previous").unwrap();
+        std::os::unix::fs::symlink(&destination, &alias).unwrap();
+        atomic(&alias, b"updated").unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"updated");
+        assert_eq!(fs::read(&alias).unwrap(), b"updated");
+        assert!(fs::symlink_metadata(&alias)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_dir(&actual).unwrap().count(), 1);
+        assert_eq!(fs::read_dir(&logical).unwrap().count(), 1);
     }
 
     #[test]

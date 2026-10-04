@@ -131,6 +131,7 @@ pub fn run() {
             commands::set_vscode_startup,
             commands::pick_project_file,
             commands::update_settings,
+            commands::update_appearance,
             commands::copy_project_path,
             commands::get_git_metadata,
             commands::launch_project,

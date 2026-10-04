@@ -5,14 +5,21 @@ use crate::{
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
+pub fn validate_appearance(theme: &str, language: &str) -> AppResult<()> {
+    if !matches!(theme, "dark" | "light" | "system")
+        || !matches!(language, "en" | "zh-CN" | "system")
+    {
+        return Err(AppError::new("invalidSettings", ""));
+    }
+    Ok(())
+}
+
 pub fn validate(settings: &mut Settings) -> AppResult<()> {
-    if !matches!(settings.theme.as_str(), "dark" | "light" | "system")
-        || !matches!(settings.language.as_str(), "en" | "zh-CN" | "system")
-        || !matches!(
-            settings.terminal.as_str(),
-            "auto" | "powershell" | "windowsTerminal"
-        )
-        || !(1..=8).contains(&settings.scan_depth)
+    validate_appearance(&settings.theme, &settings.language)?;
+    if !matches!(
+        settings.terminal.as_str(),
+        "auto" | "powershell" | "windowsTerminal"
+    ) || !(1..=8).contains(&settings.scan_depth)
     {
         return Err(AppError::new("invalidSettings", ""));
     }
@@ -71,6 +78,26 @@ pub fn change_shortcut(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appearance_accepts_supported_values_and_rejects_invalid_values() {
+        for theme in ["dark", "light", "system"] {
+            for language in ["en", "zh-CN", "system"] {
+                validate_appearance(theme, language).unwrap();
+            }
+        }
+        for (theme, language) in [
+            ("", "en"),
+            ("blue", "system"),
+            ("dark", ""),
+            ("system", "fr"),
+        ] {
+            assert_eq!(
+                validate_appearance(theme, language).unwrap_err().code,
+                "invalidSettings"
+            );
+        }
+    }
 
     #[test]
     fn global_startup_accepts_relative_paths_without_requiring_a_project() {

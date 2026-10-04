@@ -112,6 +112,15 @@ pub async fn pick_project_file(app: AppHandle, id: String) -> AppResult<Option<S
         .transpose()
 }
 #[tauri::command]
+pub fn update_appearance(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    theme: String,
+    language: String,
+) -> AppResult<AppSnapshot> {
+    state.save_appearance(&app, theme, language)
+}
+#[tauri::command]
 pub fn update_settings(
     app: AppHandle,
     state: State<'_, AppState>,

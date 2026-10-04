@@ -338,6 +338,20 @@ impl AppState {
         })
     }
 
+    pub fn save_appearance(
+        &self,
+        app: &AppHandle,
+        theme: String,
+        language: String,
+    ) -> AppResult<AppSnapshot> {
+        settings::validate_appearance(&theme, &language)?;
+        self.mutate(app, false, |user, _| {
+            user.settings.theme = theme;
+            user.settings.language = language;
+            Ok(())
+        })
+    }
+
     pub fn save_settings(&self, app: &AppHandle, mut next: Settings) -> AppResult<AppSnapshot> {
         settings::validate(&mut next)?;
         let (mut snapshot, rescan) = {

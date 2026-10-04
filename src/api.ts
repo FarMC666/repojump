@@ -19,6 +19,7 @@ export const api = {
   vscodeStartup: (id: string, startup: VscodeStartup) => invoke<AppSnapshot>('set_vscode_startup', { id, startup }),
   pickProjectFile: (id: string) => invoke<string | null>('pick_project_file', { id }),
   settings: (settings: Settings) => invoke<AppSnapshot>('update_settings', { settings }),
+  appearance: (appearance: Pick<Settings, 'theme' | 'language'>) => invoke<AppSnapshot>('update_appearance', appearance),
   syncTrayLanguage: (language: 'en' | 'zh-CN') => invoke<void>('sync_tray_language', { language }),
   git: (id: string) => invoke<GitMetadata>('get_git_metadata', { id }),
   launch: (id: string, target: LaunchTarget) => invoke<LaunchResult>('launch_project', { id, target }),
