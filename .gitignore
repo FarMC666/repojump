@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.tools/
+.tauri/
+.validation/
+*.log
+.env
+.env.*
+!.env.example
