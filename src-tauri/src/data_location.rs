@@ -1,7 +1,7 @@
 use crate::{
     model::{AppError, AppResult, IndexCache, UserData},
     paths,
-    storage::{atomic, decode_user, Storage},
+    storage::{atomic, decode_user, preserve_migration_checkpoint, Storage},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -148,6 +148,7 @@ fn equivalent_preferences(left: &UserData, right: &UserData) -> bool {
         && left.vscode_startup_overrides.iter().all(|(id, startup)| {
             right.vscode_startup_overrides.get(id).is_none_or(|other| other == startup)
         })
+        && left.editor_overrides.iter().all(|(id, editor)| right.editor_overrides.get(id).is_none_or(|other| other == editor))
         && left.settings == right.settings
 }
 
@@ -291,6 +292,7 @@ impl StorageManager {
                         let duplicate_recovery =
                             duplicate && same(&manager.active.directory, &manager.recovery);
                         let startup = user.vscode_startup_overrides.clone();
+                        let editor_overrides = user.editor_overrides.clone();
                         let (active, restored, cache, extra) = Storage::load(desired);
                         manager.active = active;
                         manager.profile_id = restored.profile_id.clone();
@@ -299,6 +301,7 @@ impl StorageManager {
                             // Existing root identities and user records remain
                             // authoritative; preserve nonconflicting new options.
                             user.vscode_startup_overrides.extend(startup);
+                            user.editor_overrides.extend(editor_overrides);
                         }
                         index = cache;
                         warnings.extend(extra);
@@ -365,6 +368,7 @@ impl StorageManager {
                 primary.display().to_string(),
             ));
         }
+        preserve_migration_checkpoint(&target.directory, &previous)?;
         atomic(&target.directory.join("state.json.bak"), &previous)?;
         let bytes = serde_json::to_vec_pretty(user)
             .map_err(|e| AppError::new("storageFailure", e.to_string()))?;
@@ -458,7 +462,7 @@ impl StorageManager {
         if self.active.read_only {
             return Ok(());
         }
-        self.active.save_cache(index)?;
+        let active = self.active.save_cache(index);
         if !same(&self.active.directory, &self.recovery) {
             // Cache is rebuildable; preferences were already mirrored by commit.
             if let Ok(target) = prepare(&self.recovery) {
@@ -466,7 +470,7 @@ impl StorageManager {
                 target.save_cache(index)?;
             }
         }
-        Ok(())
+        active
     }
 }
 
@@ -474,6 +478,50 @@ impl StorageManager {
 mod tests {
     use super::*;
     use crate::model::{CodeRoot, VscodeStartup};
+
+    #[test]
+    fn editor_profiles_and_overrides_survive_custom_storage_offline_recovery() {
+        let temp = tempfile::tempdir().unwrap();
+        let bootstrap = temp.path().join("local");
+        let custom = temp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        let (mut manager, mut user, index, _) = StorageManager::load(bootstrap.clone());
+        user.settings.data_location = Some(custom.to_string_lossy().into());
+        user.settings.default_editor_id = "cursor".into();
+        for definition in crate::editors::REGISTRY {
+            user.settings.editor_profiles.insert(
+                definition.id.into(),
+                crate::editors::EditorProfileConfig {
+                    executable_path: Some(format!("Z:/Editors/{}", definition.executable)),
+                },
+            );
+        }
+        user.editor_overrides
+            .insert("project".into(), "vscode-insiders".into());
+        user.vscode_startup_overrides
+            .insert("project".into(), VscodeStartup::GitGraph);
+        user.favorites.insert("project".into());
+        manager.commit(&user, &index, true).unwrap();
+        let offline = temp.path().join("offline");
+        fs::rename(&custom, &offline).unwrap();
+        user.editor_overrides
+            .insert("project".into(), "windsurf".into());
+        user.recent.insert("project".into(), 456);
+        let warnings = manager.commit(&user, &index, false).unwrap();
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.code == "storageLocationFallback"));
+        fs::rename(&offline, &custom).unwrap();
+        let (manager, restored, _, warnings) = StorageManager::load(bootstrap);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(manager.active.directory, custom.join(FOLDER));
+        assert_eq!(
+            serde_json::to_value(&restored).unwrap(),
+            serde_json::to_value(&user).unwrap()
+        );
+        assert_eq!(restored.editor_for("project"), "windsurf");
+        assert_eq!(restored.editor_for("other"), "cursor");
+    }
 
     #[test]
     fn separate_appdata_views_reuse_equivalent_root_data_and_its_identities() {

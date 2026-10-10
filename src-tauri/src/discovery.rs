@@ -2,7 +2,7 @@ use crate::detectors::{detect, DirectoryEntries};
 use crate::model::{CodeRoot, ProjectRecord, ScanIssue};
 use std::path::Path;
 
-const IGNORED: &[&str] = &[
+pub const IGNORED: &[&str] = &[
     ".repojump",
     "node_modules",
     ".git",
@@ -25,19 +25,35 @@ const IGNORED: &[&str] = &[
 ];
 
 pub enum ScanEvent {
-    Visited,
+    Visited(std::path::PathBuf),
     Project(ProjectRecord),
     Issue(ScanIssue),
 }
 
 // The callback returns false to cancel an obsolete scan. No filesystem writes occur here.
-pub fn scan(root: &CodeRoot, max_depth: u8, mut emit: impl FnMut(ScanEvent) -> bool) -> bool {
-    let mut stack = vec![(std::path::PathBuf::from(&root.path), 0_u8)];
+pub fn scan(root: &CodeRoot, max_depth: u8, emit: impl FnMut(ScanEvent) -> bool) -> bool {
+    scan_scope(root, Path::new(&root.path), 0, max_depth, emit)
+}
+
+pub fn ignored(name: &str) -> bool {
+    IGNORED.contains(&name.to_lowercase().as_str())
+}
+
+pub fn scan_scope(
+    root: &CodeRoot,
+    scope: &Path,
+    depth: u8,
+    max_depth: u8,
+    mut emit: impl FnMut(ScanEvent) -> bool,
+) -> bool {
+    let mut stack = vec![(scope.to_path_buf(), depth)];
     while let Some((path, depth)) = stack.pop() {
-        if !emit(ScanEvent::Visited) {
+        if !emit(ScanEvent::Visited(path.clone())) {
             return false;
         }
-        let entries = match DirectoryEntries::read(&path) {
+        let entries = match crate::paths::safe_scan_directory(Path::new(&root.path), &path)
+            .and_then(|()| DirectoryEntries::read(&path))
+        {
             Ok(entries) => entries,
             Err(e) => {
                 let issue = ScanIssue {
@@ -77,7 +93,7 @@ pub fn scan(root: &CodeRoot, max_depth: u8, mut emit: impl FnMut(ScanEvent) -> b
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_lowercase();
-                if !IGNORED.contains(&name.as_str()) {
+                if !ignored(&name) {
                     stack.push((child, depth + 1));
                 }
             }
@@ -88,12 +104,14 @@ pub fn scan(root: &CodeRoot, max_depth: u8, mut emit: impl FnMut(ScanEvent) -> b
 
 pub fn manual(path: &str) -> std::io::Result<ProjectRecord> {
     let path = Path::new(path);
+    crate::paths::safe_scan_directory(path, path)?;
     let entries = DirectoryEntries::read(path)?;
     Ok(detect(path, &entries, true).expect("forced detection always returns a project"))
 }
 
 pub fn is_project_directory(path: &str) -> std::io::Result<bool> {
     let path = Path::new(path);
+    crate::paths::safe_scan_directory(path, path)?;
     let entries = DirectoryEntries::read(path)?;
     Ok(detect(path, &entries, false).is_some())
 }

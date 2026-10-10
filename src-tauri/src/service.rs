@@ -1,9 +1,11 @@
 use crate::{
     data_location::StorageManager,
-    discovery::{self, ScanEvent},
-    git, launcher,
+    discovery, editors, git,
+    indexer::{self, WorkQueue},
+    launcher,
     model::*,
     paths, settings, vscode_startup,
+    watcher::WatchManager,
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -22,19 +24,20 @@ pub struct Inner {
     pub revision: u64,
     pub epoch: u64,
     pub scan: ScanStatus,
-    pub pending: bool,
+    pub work: WorkQueue,
     pub warnings: Vec<AppError>,
     pub active_shortcut: Option<String>,
 }
 
 pub struct AppState {
     pub inner: Mutex<Inner>,
+    pub watcher: WatchManager,
     startup_directory: PathBuf,
     git_cache: Mutex<HashMap<String, (Instant, GitMetadata)>>,
     launches: Mutex<HashSet<String>>,
 }
 
-fn reconcile(user: &UserData, index: &mut IndexCache) {
+pub(crate) fn reconcile(user: &UserData, index: &mut IndexCache) {
     let roots: BTreeSet<_> = user.roots.iter().map(|r| r.id.clone()).collect();
     let manuals: HashSet<_> = user
         .manual_projects
@@ -70,7 +73,7 @@ fn reconcile(user: &UserData, index: &mut IndexCache) {
     }
 }
 
-fn merge(index: &mut IndexCache, mut project: ProjectRecord) {
+pub(crate) fn merge(index: &mut IndexCache, mut project: ProjectRecord) {
     if let Some(existing) = index.projects.get(&project.id) {
         project.root_ids.extend(existing.root_ids.iter().cloned());
         project.manual |= existing.manual;
@@ -102,6 +105,7 @@ impl AppState {
         reconcile(&user, &mut index);
         Self {
             startup_directory,
+            watcher: WatchManager::new(),
             inner: Mutex::new(Inner {
                 storage,
                 user,
@@ -109,7 +113,7 @@ impl AppState {
                 revision: 1,
                 epoch: 0,
                 scan: ScanStatus::default(),
-                pending: false,
+                work: WorkQueue::default(),
                 warnings,
                 active_shortcut: None,
             }),
@@ -135,6 +139,7 @@ impl AppState {
                         .cloned()
                         .or_else(|| paths::category(&record.path, &inner.user.roots)),
                     category_override: inner.user.category_overrides.contains_key(&record.id),
+                    editor_id: inner.user.editor_overrides.get(&record.id).cloned(),
                     favorite: inner.user.favorites.contains(&record.id),
                     last_opened_at: inner.user.recent.get(&record.id).copied(),
                     vscode_startup: inner
@@ -257,7 +262,7 @@ impl AppState {
         let path = paths::directory(&path)?.to_string_lossy().into_owned();
         let project = discovery::manual(&path)
             .map_err(|e| AppError::new("directoryUnavailable", e.to_string()))?;
-        self.mutate(app, false, |user, index| {
+        self.mutate(app, true, |user, index| {
             if !user
                 .manual_projects
                 .iter()
@@ -354,6 +359,7 @@ impl AppState {
 
     pub fn save_settings(&self, app: &AppHandle, mut next: Settings) -> AppResult<AppSnapshot> {
         settings::validate(&mut next)?;
+        editors::validate_changes(&next, &self.inner.lock().unwrap().user.settings)?;
         let (mut snapshot, rescan) = {
             let mut inner = self.inner.lock().unwrap();
             let previous = inner.user.settings.clone();
@@ -441,6 +447,29 @@ impl AppState {
         })
     }
 
+    pub fn set_project_editor(
+        &self,
+        app: &AppHandle,
+        id: String,
+        editor_id: Option<String>,
+    ) -> AppResult<AppSnapshot> {
+        self.mutate(app, false, |user, index| {
+            if !index.projects.contains_key(&id) {
+                return Err(AppError::new("projectNotFound", id));
+            }
+            if let Some(editor_id) = editor_id {
+                editors::definition(&editor_id)?;
+                if !user.settings.editor_profiles.contains_key(&editor_id) {
+                    return Err(AppError::new("editorNotConfigured", editor_id));
+                }
+                user.editor_overrides.insert(id, editor_id);
+            } else {
+                user.editor_overrides.remove(&id);
+            }
+            Ok(())
+        })
+    }
+
     pub fn project_directory(&self, id: &str) -> AppResult<PathBuf> {
         paths::directory(&self.project(id)?.path)
     }
@@ -490,6 +519,7 @@ impl AppState {
         app: &AppHandle,
         id: &str,
         target: LaunchTarget,
+        editor_id: Option<String>,
     ) -> AppResult<LaunchResult> {
         {
             let mut pending = self.launches.lock().unwrap();
@@ -500,21 +530,29 @@ impl AppState {
         let result = (|| {
             let project = self.project(id)?;
             let path = paths::directory(&project.path)?;
-            let (settings, startup) = {
+            let (settings, startup, resolved_editor) = {
                 let inner = self.inner.lock().unwrap();
                 (
                     inner.user.settings.clone(),
                     inner.user.vscode_startup_for(id).clone(),
+                    editor_id.unwrap_or_else(|| {
+                        if matches!(target, LaunchTarget::Vscode) {
+                            "vscode".into()
+                        } else {
+                            inner.user.editor_for(id).into()
+                        }
+                    }),
                 )
             };
             let mut warnings = Vec::new();
             match target {
-                LaunchTarget::Vscode => {
-                    warnings = vscode_startup::open(
+                LaunchTarget::Vscode | LaunchTarget::Editor => {
+                    warnings = editors::open(
                         app,
                         &self.startup_directory,
                         &path,
                         &settings,
+                        &resolved_editor,
                         &startup,
                     )?
                 }
@@ -533,7 +571,7 @@ impl AppState {
                         .map_err(|e| AppError::new("launchFailed", e.to_string()))?;
                 }
             }
-            if matches!(target, LaunchTarget::Vscode) {
+            if matches!(target, LaunchTarget::Vscode | LaunchTarget::Editor) {
                 match self.mutate(app, false, |user, _| {
                     user.recent.insert(id.into(), now_ms());
                     Ok(())
@@ -565,150 +603,84 @@ impl AppState {
     }
 }
 
-fn add_warning(inner: &mut Inner, warning: AppError) {
+pub(crate) fn add_warning(inner: &mut Inner, warning: AppError) {
     if !inner.warnings.iter().any(|w| w.code == warning.code) {
         inner.warnings.push(warning);
     }
 }
 
-fn below(path: &str, ancestor: &str) -> bool {
-    let path = paths::identity(path);
-    let ancestor = paths::identity(ancestor);
-    path == ancestor || path.starts_with(&(ancestor + "\\"))
-}
-
+#[cfg(test)]
 fn finish_root(
     index: &mut IndexCache,
     root: &CodeRoot,
     seen: &HashSet<String>,
     issues: &[ScanIssue],
 ) {
-    for project in index
-        .projects
-        .values_mut()
-        .filter(|p| p.root_ids.contains(&root.id) && !seen.contains(&p.id))
-    {
-        if let Some(issue) = issues.iter().find(|i| below(&project.path, &i.path)) {
-            project.availability = if issue.code == "directoryMissing" {
-                Availability::Missing
-            } else {
-                Availability::Unknown
-            };
-        } else {
-            match std::fs::metadata(&project.path) {
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    project.availability = Availability::Missing
-                }
-                Err(_) => project.availability = Availability::Unknown,
-                Ok(_) => {
-                    project.root_ids.remove(&root.id);
-                }
-            }
-        }
+    let decisions = indexer::missing_records(index, root, Path::new(&root.path), seen, issues);
+    indexer::apply_missing(index, root, decisions);
+}
+
+fn start_worker(app: &AppHandle, inner: &mut Inner) {
+    if inner.scan.running || app.state::<AppState>().watcher.stopped() {
+        return;
     }
+    inner.scan.running = true;
+    inner.revision += 1;
+    let app = app.clone();
+    std::thread::spawn(move || indexer::run(app));
 }
 
 pub fn request_scan(app: &AppHandle) {
-    app.state::<AppState>().git_cache.lock().unwrap().clear();
-    {
-        let state = app.state::<AppState>();
-        let mut inner = state.inner.lock().unwrap();
-        if inner.scan.running {
-            inner.pending = true;
-            return;
-        }
-        inner.scan.running = true;
-        inner.revision += 1;
-    }
-    let app = app.clone();
-    std::thread::spawn(move || scan_worker(app));
+    let state = app.state::<AppState>();
+    state.git_cache.lock().unwrap().clear();
+    let mut inner = state.inner.lock().unwrap();
+    inner.work.full();
+    start_worker(app, &mut inner);
 }
 
-fn scan_worker(app: AppHandle) {
+pub fn request_changes(app: &AppHandle, hints: BTreeSet<PathBuf>, overflow: bool) {
     let state = app.state::<AppState>();
-    loop {
-        let (epoch, user) = {
-            let mut inner = state.inner.lock().unwrap();
-            inner.pending = false;
-            inner.scan = ScanStatus {
-                running: true,
-                ..Default::default()
-            };
-            inner.revision += 1;
-            let _ = app.emit("index-updated", state.snapshot_locked(&inner));
-            (inner.epoch, inner.user.clone())
-        };
-        let mut last_emit = Instant::now();
-        for root in &user.roots {
-            let mut seen = HashSet::new();
-            let mut issues = Vec::new();
-            let completed = discovery::scan(root, user.settings.scan_depth, |event| {
-                let mut inner = state.inner.lock().unwrap();
-                if inner.epoch != epoch {
-                    return false;
-                }
-                match event {
-                    ScanEvent::Visited => inner.scan.visited += 1,
-                    ScanEvent::Project(project) => {
-                        seen.insert(project.id.clone());
-                        inner.scan.discovered += 1;
-                        merge(&mut inner.index, project);
-                    }
-                    ScanEvent::Issue(issue) => {
-                        issues.push(issue.clone());
-                        if inner.scan.issues.len() < 100 {
-                            inner.scan.issues.push(issue);
-                        }
-                    }
-                }
-                if last_emit.elapsed() >= Duration::from_millis(120) {
-                    inner.revision += 1;
-                    let _ = app.emit("index-updated", state.snapshot_locked(&inner));
-                    last_emit = Instant::now();
-                }
-                true
-            });
-            let mut inner = state.inner.lock().unwrap();
-            if !completed || inner.epoch != epoch {
-                break;
-            }
-            finish_root(&mut inner.index, root, &seen, &issues);
-        }
-        for path in &user.manual_projects {
-            let result = discovery::manual(path);
-            let mut inner = state.inner.lock().unwrap();
-            if inner.epoch != epoch {
-                break;
-            }
-            match result {
-                Ok(project) => merge(&mut inner.index, project),
-                Err(e) => {
-                    if let Some(project) = inner.index.projects.get_mut(&paths::identity(path)) {
-                        project.availability = if e.kind() == std::io::ErrorKind::NotFound {
-                            Availability::Missing
-                        } else {
-                            Availability::Unknown
-                        };
-                    }
-                }
-            }
-        }
-        let mut inner = state.inner.lock().unwrap();
-        if inner.epoch == epoch {
-            let current_user = inner.user.clone();
-            reconcile(&current_user, &mut inner.index);
-            if let Err(e) = inner.storage.save_cache(&inner.index) {
-                add_warning(&mut inner, e);
-            }
-        }
-        if inner.pending || inner.epoch != epoch {
-            drop(inner);
+    let mut inner = state.inner.lock().unwrap();
+    let roots = inner.user.roots.clone();
+    let manuals = inner.user.manual_projects.clone();
+    for root in &roots {
+        if overflow {
+            inner.work.scope(root, PathBuf::from(&root.path));
             continue;
         }
-        inner.scan.running = false;
-        inner.revision += 1;
-        let _ = app.emit("index-updated", state.snapshot_locked(&inner));
-        break;
+        for hint in &hints {
+            if indexer::below(&hint.to_string_lossy(), &root.path) {
+                let scope = hint
+                    .parent()
+                    .filter(|p| indexer::below(&p.to_string_lossy(), &root.path))
+                    .unwrap_or(Path::new(&root.path));
+                let scope = inner
+                    .index
+                    .projects
+                    .values()
+                    .filter(|p| {
+                        p.root_ids.contains(&root.id)
+                            && indexer::below(&scope.to_string_lossy(), &p.path)
+                    })
+                    .min_by_key(|p| p.path.len())
+                    .map(|p| PathBuf::from(&p.path))
+                    .unwrap_or_else(|| scope.to_path_buf());
+                inner.work.scope(root, scope);
+            }
+        }
+    }
+    for manual in manuals {
+        if overflow
+            || hints
+                .iter()
+                .any(|p| indexer::below(&p.to_string_lossy(), &manual))
+        {
+            inner.work.manuals.insert(manual);
+        }
+    }
+    if !inner.work.is_empty() {
+        state.git_cache.lock().unwrap().clear();
+        start_worker(app, &mut inner);
     }
 }
 

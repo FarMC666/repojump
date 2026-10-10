@@ -11,69 +11,11 @@ fn on_path(name: &str) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-fn from_cli(path: PathBuf) -> Option<PathBuf> {
-    if path
-        .file_name()?
-        .to_string_lossy()
-        .eq_ignore_ascii_case("code.cmd")
-    {
-        let executable = path.parent()?.parent()?.join("Code.exe");
-        executable.is_file().then_some(executable)
-    } else {
-        path.is_file().then_some(path)
-    }
-}
-
 pub fn vscode(settings: &Settings) -> AppResult<PathBuf> {
-    if let Some(configured) = &settings.vscode_path {
-        let path = PathBuf::from(configured);
-        if path.is_absolute()
-            && path.is_file()
-            && path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("exe"))
-        {
-            return Ok(path);
-        }
-        return Err(AppError::new("vscodeInvalid", configured.clone()));
-    }
-    for cli in ["code.exe", "code.cmd"] {
-        if let Some(executable) = on_path(cli).and_then(from_cli) {
-            return Ok(executable);
-        }
-    }
-    #[cfg(windows)]
-    {
-        use winreg::{
-            enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE},
-            RegKey,
-        };
-        for hive in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
-            if let Ok(key) = RegKey::predef(hive)
-                .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Code.exe")
-            {
-                if let Ok(value) = key.get_value::<String, _>("") {
-                    let path = PathBuf::from(value.trim_matches('"'));
-                    if path.is_file() {
-                        return Ok(path);
-                    }
-                }
-            }
-        }
-    }
-    for (variable, suffix) in [
-        ("LOCALAPPDATA", "Programs/Microsoft VS Code/Code.exe"),
-        ("ProgramFiles", "Microsoft VS Code/Code.exe"),
-        ("ProgramFiles(x86)", "Microsoft VS Code/Code.exe"),
-    ] {
-        if let Some(base) = env::var_os(variable) {
-            let candidate = PathBuf::from(base).join(suffix);
-            if candidate.is_file() {
-                return Ok(candidate);
-            }
-        }
-    }
-    Err(AppError::new("vscodeNotFound", ""))
+    crate::editor_detection::resolve(
+        crate::editors::definition("vscode")?,
+        settings.editor_profiles.get("vscode"),
+    )
 }
 
 pub fn vscode_command(executable: &Path, project: &Path, file: Option<&Path>) -> Command {
@@ -117,6 +59,13 @@ pub fn open_vscode(path: &Path, settings: &Settings, file: Option<&Path>) -> App
 }
 
 pub fn open_terminal(path: &Path, settings: &Settings) -> AppResult<()> {
+    if settings.terminal == "cmd" {
+        let executable = system_executable("System32/cmd.exe")
+            .or_else(|| on_path("cmd.exe"))
+            .ok_or_else(|| AppError::new("terminalNotFound", "Windows CMD"))?;
+        // /D disables registry AutoRun commands; the project is only the process cwd.
+        return open_cmd(&executable, path);
+    }
     // wt interprets semicolons even without a shell. Use the cwd-only PowerShell route for those paths.
     let ambiguous = path.as_os_str().to_string_lossy().contains(';');
     if settings.terminal != "powershell" && !ambiguous {
@@ -132,27 +81,114 @@ pub fn open_terminal(path: &Path, settings: &Settings) -> AppResult<()> {
         }
     }
     let executable = on_path("pwsh.exe")
-        .or_else(|| {
-            env::var_os("SystemRoot")
-                .map(|p| PathBuf::from(p).join("System32/WindowsPowerShell/v1.0/powershell.exe"))
-                .filter(|p| p.is_file())
-        })
+        .or_else(|| system_executable("System32/WindowsPowerShell/v1.0/powershell.exe"))
         .ok_or_else(|| AppError::new("terminalNotFound", "PowerShell"))?;
+    spawn(console_command(
+        &executable,
+        path,
+        &["-NoLogo", "-NoProfile", "-NoExit"],
+    ))
+    .map(|_| ())
+}
+
+fn system_executable(relative: &str) -> Option<PathBuf> {
+    env::var_os("SystemRoot")
+        .map(|root| PathBuf::from(root).join(relative))
+        .filter(|path| path.is_file())
+}
+
+#[cfg(windows)]
+fn open_cmd(executable: &Path, path: &Path) -> AppResult<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        core::{PCWSTR, PWSTR},
+        Win32::{
+            Foundation::CloseHandle,
+            System::Threading::{
+                CreateProcessW, CREATE_NEW_CONSOLE, PROCESS_INFORMATION, STARTUPINFOW,
+            },
+        },
+    };
+    let executable: Vec<u16> = executable
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    let directory: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // Only fixed flags enter the command line. The executable and cwd have separate native fields.
+    let mut arguments: Vec<u16> = "cmd.exe /D /K".encode_utf16().chain(Some(0)).collect();
+    let startup = STARTUPINFOW {
+        cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+        ..Default::default()
+    };
+    let mut process = PROCESS_INFORMATION::default();
+    // A new interactive console must obtain its own stdin/out, rather than inherit Tauri/debug pipes.
+    // The UTF-16 buffers remain alive for the call; no process/thread handle survives this function.
+    unsafe {
+        CreateProcessW(
+            PCWSTR(executable.as_ptr()),
+            Some(PWSTR(arguments.as_mut_ptr())),
+            None,
+            None,
+            false,
+            CREATE_NEW_CONSOLE,
+            None,
+            PCWSTR(directory.as_ptr()),
+            &startup,
+            &mut process,
+        )
+        .map_err(|error| AppError::new("launchFailed", error.to_string()))?;
+        let _ = CloseHandle(process.hThread);
+        let _ = CloseHandle(process.hProcess);
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn open_cmd(executable: &Path, path: &Path) -> AppResult<()> {
+    spawn(console_command(executable, path, &["/D", "/K"])).map(|_| ())
+}
+
+fn console_command(executable: &Path, path: &Path, arguments: &[&str]) -> Command {
     let mut command = Command::new(executable);
-    command
-        .args(["-NoLogo", "-NoProfile", "-NoExit"])
-        .current_dir(path);
+    command.args(arguments).current_dir(path);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x00000010); // CREATE_NEW_CONSOLE, also when the debug app owns a console.
     }
-    spawn(command).map(|_| ())
+    command
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn cmd_launch_failure_is_returned_without_shell_fallback() {
+        let directory = tempfile::tempdir().unwrap();
+        let missing = directory.path().join("not-installed.exe");
+        assert_eq!(
+            open_cmd(&missing, directory.path()).unwrap_err().code,
+            "launchFailed"
+        );
+    }
+
+    #[test]
+    fn powershell_launch_keeps_project_paths_out_of_shell_arguments() {
+        for path in [
+            r"D:\code\test",
+            r"D:\My Code\Test Project",
+            r"D:\代码\测试项目",
+            r"D:\code\a & (b); $c %PATH%",
+        ] {
+            let arguments = ["-NoLogo", "-NoProfile", "-NoExit"];
+            let command = console_command(Path::new("powershell.exe"), Path::new(path), &arguments);
+            assert_eq!(command.get_program(), "powershell.exe");
+            assert_eq!(command.get_current_dir(), Some(Path::new(path)));
+            assert_eq!(command.get_args().collect::<Vec<_>>(), arguments);
+        }
+    }
     #[test]
     fn arguments_are_literal_and_not_shell_strings() {
         for path in [

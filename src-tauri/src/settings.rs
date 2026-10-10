@@ -1,7 +1,4 @@
-use crate::{
-    launcher,
-    model::{AppError, AppResult, Settings, VscodeStartup},
-};
+use crate::model::{AppError, AppResult, Settings, VscodeStartup};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -18,13 +15,10 @@ pub fn validate(settings: &mut Settings) -> AppResult<()> {
     validate_appearance(&settings.theme, &settings.language)?;
     if !matches!(
         settings.terminal.as_str(),
-        "auto" | "powershell" | "windowsTerminal"
+        "auto" | "powershell" | "windowsTerminal" | "cmd"
     ) || !(1..=8).contains(&settings.scan_depth)
     {
         return Err(AppError::new("invalidSettings", ""));
-    }
-    if settings.vscode_path.is_some() {
-        launcher::vscode(settings)?;
     }
     if let VscodeStartup::File { path } = &mut settings.default_vscode_startup {
         *path = crate::paths::startup_file_path(path).map_err(|error| {
@@ -78,6 +72,28 @@ pub fn change_shortcut(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminal_settings_round_trip_and_reject_unknown_shells() {
+        for terminal in ["auto", "powershell", "windowsTerminal", "cmd"] {
+            let mut settings = Settings {
+                terminal: terminal.into(),
+                ..Settings::default()
+            };
+            validate(&mut settings).unwrap();
+            let saved = serde_json::to_string(&settings).unwrap();
+            let mut restored: Settings = serde_json::from_str(&saved).unwrap();
+            validate(&mut restored).unwrap();
+            assert_eq!(restored.terminal, terminal);
+        }
+        for terminal in ["", "custom", "cmd.exe /c something"] {
+            let mut settings = Settings {
+                terminal: terminal.into(),
+                ..Settings::default()
+            };
+            assert_eq!(validate(&mut settings).unwrap_err().code, "invalidSettings");
+        }
+    }
 
     #[test]
     fn appearance_accepts_supported_values_and_rejects_invalid_values() {

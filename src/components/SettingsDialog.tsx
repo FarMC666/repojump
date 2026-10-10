@@ -1,19 +1,21 @@
 import { useState, type KeyboardEvent } from 'react';
+import { version } from '../../package.json';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../api';
-import type { AppSnapshot, Settings, VscodeStartup } from '../models';
+import type { AppSnapshot, EditorStatus, Settings, VscodeStartup } from '../models';
 import type { Translate } from '../i18n';
 import { errorText } from '../i18n';
 import { Dialog } from './Dialog';
+import { EditorSettings } from './EditorSettings';
 
 interface Props {
-  snapshot: AppSnapshot; t: Translate; onClose: () => void;
+  snapshot: AppSnapshot; editors: EditorStatus[]; t: Translate; onClose: () => void;
   update: (snapshot: AppSnapshot) => void; addRoot: () => Promise<void>;
   updateRoots: (snapshot: AppSnapshot) => void;
   removeRoot: (id: string) => void; report: (error: unknown) => void;
 }
 
-export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addRoot, removeRoot, report }: Props) {
+export function SettingsDialog({ snapshot, editors, t, onClose, update, updateRoots, addRoot, removeRoot, report }: Props) {
   const [draft, setDraft] = useState<Settings>({ ...snapshot.settings });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -31,7 +33,7 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
   const save = async () => {
     if (busy || snapshot.storageReadOnly) return;
     setBusy(true); setError(null);
-    try { update(await api.settings({ ...draft, vscodePath: draft.vscodePath?.trim() || null, globalShortcut: draft.globalShortcut?.trim() || null, defaultVscodeStartup: draft.defaultVscodeStartup.kind === 'file' ? { kind: 'file', path: draft.defaultVscodeStartup.path.trim() } : draft.defaultVscodeStartup })); onClose(); }
+    try { update(await api.settings({ ...draft, editorProfiles: Object.fromEntries(Object.entries(draft.editorProfiles).map(([id, profile]) => [id, { executablePath: profile.executablePath?.trim() || null }])), globalShortcut: draft.globalShortcut?.trim() || null, defaultVscodeStartup: draft.defaultVscodeStartup.kind === 'file' ? { kind: 'file', path: draft.defaultVscodeStartup.path.trim() } : draft.defaultVscodeStartup })); onClose(); }
     catch (e) { setError(e); } finally { setBusy(false); }
   };
   const record = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -60,14 +62,13 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
           <label htmlFor="language">{t('language')}</label><select id="language" disabled={busy || snapshot.storageReadOnly} value={draft.language} onChange={e => { void setAppearance('language', e.target.value as Settings['language']); }}><option value="system">{t('system')}</option><option value="zh-CN">简体中文</option><option value="en">English</option></select>
         </div><p>{t('appearanceHint')}</p></section>
         <section><h3>{t('discovery')}</h3><div className="setting-grid"><label htmlFor="depth">{t('scanDepth')}</label><input id="depth" type="number" min={1} max={8} required value={draft.scanDepth} onChange={e => set('scanDepth', Number(e.target.value))} /></div><p>{t('depthHint')}</p></section>
-        <section><h3>{t('launching')}</h3><label htmlFor="code-path">{t('codePath')}</label><div className="input-actions"><input id="code-path" placeholder={t('autoDetect')} value={draft.vscodePath ?? ''} onChange={e => set('vscodePath', e.target.value || null)} /><button type="button" className="secondary-button" onClick={async () => { try { const path = await api.pickCode(); if (typeof path === 'string') set('vscodePath', path); } catch (e) { setError(e); } }}>{t('browse')}</button></div>
-          {draft.vscodePath && <button type="button" className="text-button" onClick={() => set('vscodePath', null)}>{t('reset')}</button>}
-          <div className="setting-grid terminal-setting"><label htmlFor="default-startup-kind">{t('defaultVscodeStartup')}</label><select id="default-startup-kind" disabled={busy} value={draft.defaultVscodeStartup.kind} onChange={e => { const kind = e.target.value as VscodeStartup['kind']; set('defaultVscodeStartup', kind === 'file' ? { kind, path: '' } : { kind }); }}><option value="default">{t('startupDefault')}</option><option value="file">{t('startupFile')}</option><option value="gitGraph">Git Graph</option></select></div>
+        <section><h3>{t('launching')}</h3><EditorSettings draft={draft} editors={editors} setDraft={setDraft} busy={busy || snapshot.storageReadOnly} report={setError} t={t} />
+          <div className="setting-grid terminal-setting"><label htmlFor="default-startup-kind">{t('defaultVscodeStartup')}</label><select id="default-startup-kind" disabled={busy} value={draft.defaultVscodeStartup.kind} onChange={e => { const kind = e.target.value as VscodeStartup['kind']; set('defaultVscodeStartup', kind === 'file' ? { kind, path: '' } : { kind }); }}><option value="default">{t('startupDefault')}</option><option disabled={!editors.find(editor => editor.id === draft.defaultEditorId)?.capabilities.specificFile} value="file">{t('startupFile')}</option><option disabled={!editors.find(editor => editor.id === draft.defaultEditorId)?.capabilities.gitGraph} value="gitGraph">Git Graph</option></select></div>
           <p>{t('defaultStartupHint')}</p>
           {draft.defaultVscodeStartup.kind === 'default' && <p>{t('startupDefaultHint')}</p>}
           {draft.defaultVscodeStartup.kind === 'file' && <><label htmlFor="default-startup-file">{t('startupFilePath')}</label><input id="default-startup-file" required disabled={busy} placeholder="index.html" value={draft.defaultVscodeStartup.path} onChange={e => set('defaultVscodeStartup', { kind: 'file', path: e.target.value })} /><p>{t('startupDefaultFileHint')}</p></>}
           {draft.defaultVscodeStartup.kind === 'gitGraph' && <p>{t('startupGitGraphHint')}</p>}
-          <div className="setting-grid terminal-setting"><label htmlFor="terminal">{t('terminal')}</label><select id="terminal" value={draft.terminal} onChange={e => set('terminal', e.target.value as Settings['terminal'])}><option value="auto">{t('terminalAuto')}</option><option value="windowsTerminal">Windows Terminal</option><option value="powershell">PowerShell</option></select></div>
+          <div className="setting-grid terminal-setting"><label htmlFor="terminal">{t('terminal')}</label><select id="terminal" value={draft.terminal} onChange={e => set('terminal', e.target.value as Settings['terminal'])}><option value="auto">{t('terminalAuto')}</option><option value="cmd">{t('terminalCmd')}</option><option value="powershell">PowerShell</option><option value="windowsTerminal">{t('terminalWindows')}</option></select></div>
         </section>
         <section><h3>{t('shortcut')}</h3><label className="check-label"><input type="checkbox" checked={draft.globalShortcut !== null} onChange={e => set('globalShortcut', e.target.checked ? 'Ctrl+Alt+P' : null)} />{t('shortcutEnabled')}</label>
           {draft.globalShortcut !== null && <div className="input-actions"><input id="shortcut" aria-label={t('shortcut')} value={draft.globalShortcut} placeholder={t('shortcutPlaceholder')} onChange={e => set('globalShortcut', e.target.value)} onKeyDown={record} /><button type="button" className="secondary-button" onClick={() => { setRecording(true); document.getElementById('shortcut')?.focus(); }}>{t(recording ? 'recording' : 'capture')}</button></div>}
@@ -77,7 +78,7 @@ export function SettingsDialog({ snapshot, t, onClose, update, updateRoots, addR
           <div className="setting-grid"><label htmlFor="data-mode">{t('dataLocation')}</label><select id="data-mode" disabled={busy} value={draft.dataLocation === null ? 'auto' : 'custom'} onChange={e => set('dataLocation', e.target.value === 'auto' ? null : '')}><option value="auto">{t('dataAutomatic')}</option><option value="custom">{t('dataCustom')}</option></select></div>
           <p>{t('dataAutomaticHint')}</p>
           {draft.dataLocation !== null && <><label htmlFor="data-parent">{t('dataParent')}</label><div className="input-actions"><input id="data-parent" required disabled={busy} value={draft.dataLocation} onChange={e => set('dataLocation', e.target.value)} /><button type="button" className="secondary-button" disabled={busy} aria-label={t('chooseDataFolder')} onClick={async () => { try { const path = await api.pickDataLocation(); if (typeof path === 'string') set('dataLocation', path); } catch (e) { setError(e); } }}>{t('chooseFolder')}</button></div><p>{t('dataCustomHint')}</p></>}
-          <label>{t('dataCurrent')}</label><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump 0.1.4</p>
+          <label>{t('dataCurrent')}</label><code className="data-path">{snapshot.dataDirectory}</code><p className="version">RepoJump {version}</p>
         </section>
       </div>
       <div className="dialog-footer">{error !== null && <p className="form-error" role="alert">{errorText(error, t)}</p>}<button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="primary-button" disabled={busy || snapshot.storageReadOnly}>{t('save')}</button></div>

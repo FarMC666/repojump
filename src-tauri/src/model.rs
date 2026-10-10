@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const STATE_SCHEMA_VERSION: u32 = 2;
+pub const INDEX_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +40,8 @@ pub struct Settings {
     pub theme: String,
     pub language: String,
     pub scan_depth: u8,
-    pub vscode_path: Option<String>,
+    pub default_editor_id: String,
+    pub editor_profiles: BTreeMap<String, crate::editors::EditorProfileConfig>,
     pub default_vscode_startup: VscodeStartup,
     pub terminal: String,
     pub global_shortcut: Option<String>,
@@ -53,7 +55,11 @@ impl Default for Settings {
             theme: "dark".into(),
             language: "system".into(),
             scan_depth: 4,
-            vscode_path: None,
+            default_editor_id: "vscode".into(),
+            editor_profiles: BTreeMap::from([(
+                "vscode".into(),
+                crate::editors::EditorProfileConfig::default(),
+            )]),
             default_vscode_startup: VscodeStartup::Default,
             terminal: "auto".into(),
             global_shortcut: Some("Ctrl+Alt+P".into()),
@@ -80,6 +86,7 @@ pub struct UserData {
     pub favorites: BTreeSet<String>,
     pub recent: BTreeMap<String, u64>,
     pub category_overrides: BTreeMap<String, String>,
+    pub editor_overrides: BTreeMap<String, String>,
     pub vscode_startup_overrides: BTreeMap<String, VscodeStartup>,
     pub settings: Settings,
 }
@@ -87,13 +94,14 @@ pub struct UserData {
 impl Default for UserData {
     fn default() -> Self {
         Self {
-            schema_version: SCHEMA_VERSION,
+            schema_version: STATE_SCHEMA_VERSION,
             profile_id: uuid::Uuid::new_v4().to_string(),
             roots: Vec::new(),
             manual_projects: Vec::new(),
             favorites: BTreeSet::new(),
             recent: BTreeMap::new(),
             category_overrides: BTreeMap::new(),
+            editor_overrides: BTreeMap::new(),
             vscode_startup_overrides: BTreeMap::new(),
             settings: Settings::default(),
         }
@@ -101,6 +109,12 @@ impl Default for UserData {
 }
 
 impl UserData {
+    pub fn editor_for(&self, id: &str) -> &str {
+        self.editor_overrides
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or(&self.settings.default_editor_id)
+    }
     pub fn vscode_startup_for(&self, id: &str) -> &VscodeStartup {
         self.vscode_startup_overrides
             .get(id)
@@ -117,7 +131,7 @@ pub enum Availability {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectRecord {
     pub id: String,
@@ -142,7 +156,7 @@ pub struct IndexCache {
 impl Default for IndexCache {
     fn default() -> Self {
         Self {
-            schema_version: SCHEMA_VERSION,
+            schema_version: INDEX_SCHEMA_VERSION,
             projects: BTreeMap::new(),
         }
     }
@@ -158,6 +172,7 @@ pub struct Project {
     pub favorite: bool,
     pub last_opened_at: Option<u64>,
     pub vscode_startup: VscodeStartup,
+    pub editor_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,6 +216,7 @@ pub struct GitMetadata {
 #[serde(rename_all = "camelCase")]
 pub enum LaunchTarget {
     Vscode,
+    Editor,
     Terminal,
     Explorer,
     Repository,

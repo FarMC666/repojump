@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A lightweight Windows launcher for local development projects. Add a code root, find a project, and press **Enter** to open it in a new VS Code window.
+A lightweight Windows launcher for local development projects. Add a code root, find a project, and press **Enter** to open it in your configured editor.
 
 Built with **Tauri 2, React, TypeScript and Vite**. Targets Windows 10/11 x64, runs locally, and needs no account.
 
@@ -32,8 +32,8 @@ Use **Add single project** for projects outside your roots, ordinary folders wit
 
 - Instant local search, including fuzzy name matching and multiple search terms. Windows paths work with either `\` or `/`.
 - Favorites pinned above other projects; Recent maintained independently of VS Code.
-- Project menus for VS Code, Terminal, Explorer, copying paths, repository links and category overrides.
-- Background discovery with a cached index, configurable depth and manual rescanning.
+- Shared project menus and a keyboard Action Palette for editors, Terminal, Explorer, copying paths, repository links and favorites.
+- Background discovery with a cached index, automatic filesystem updates, configurable depth and manual rescanning.
 - Configurable global shortcut, tray menu and single-instance activation.
 - Dark, light and system themes; English and Simplified Chinese.
 - Local JSON storage with backups and a configurable data location.
@@ -44,13 +44,16 @@ Use **Add single project** for projects outside your roots, ordinary folders wit
 | --- | --- |
 | Ctrl+K | Focus search and select the current query |
 | Up / Down | Select a project |
-| Enter | Open a new VS Code window |
+| Enter | Open with the project override or global default editor |
+| Tab | Show actions for the selected project; Up/Down select, Enter runs, Esc returns to search |
+| Ctrl+Enter | Open Terminal |
+| Alt+Enter | Open Explorer |
 | Esc | Close a menu/dialog, clear the query, or hide the quick-launch window |
 | Ctrl+Alt+P | Show RepoJump, clear the query and focus search |
 
 The global shortcut can be changed or disabled in Settings. A conflict keeps the previous setting and shows an error. RepoJump must be running to receive the shortcut.
 
-Closing the window keeps the application in the tray by default. Exit through the tray menu, or disable this behavior in Settings. A successful VS Code launch hides a window opened through the global shortcut; a normally opened window stays visible.
+Closing the window keeps the application in the tray by default. Exit through the tray menu, or disable this behavior in Settings. A successful editor launch without warnings hides a window opened through the global shortcut; a normally opened window stays visible.
 
 Theme and language changes in Settings apply and save immediately, even if you cancel. Other settings still require Save. The tray menu follows the application's language, including Follow system, and updates as soon as the language changes.
 
@@ -73,9 +76,22 @@ The default maximum depth is **4**, with the root at depth **0**. Settings allow
 
 Categories come from the first container folder below the most specific matching root. Direct children of a root, the root itself, and manual projects outside roots are Uncategorized. Overlapping roots and manual sources do not duplicate projects.
 
-Startup displays the cache before refreshing it. There is no filesystem watcher: use **Rescan** after creating projects or changing markers. Unreadable roots retain cached entries, and missing folders are marked unavailable. Removing a root or manual entry only changes the index sources.
+Startup displays the cache before refreshing it. Filesystem monitoring updates projects and technology labels after relevant changes, with events coalesced in the background. Use **Rescan** as a complete fallback. Disconnected roots and failed watches are retried about every 30 seconds; network roots are also reconciled periodically. Unreadable roots retain cached entries, and missing folders are marked unavailable. Removing a root or manual entry only changes the index sources.
 
 ## Opening projects
+
+Enable **Visual Studio Code**, **Visual Studio Code Insiders**, **Cursor** or **Windsurf** in Settings → Launching and select the global default. Each profile can use automatic detection or a manually selected executable. Choose **Project editor** in a project menu to override the default; selecting Follow global setting removes the override. **Open with** in the menu or Action Palette changes only that launch. Missing or invalid executables show a clear error and retain project data.
+
+| Editor | Project opening | Specific startup file | RepoJump helper / Git Graph |
+| --- | --- | --- | --- |
+| VS Code | Yes | Yes | Yes |
+| VS Code Insiders | Yes | Yes | Unavailable |
+| Cursor | Yes | Unavailable | Unavailable |
+| Windsurf | Yes | Unavailable | Unavailable |
+
+Automatic detection checks PATH, App Paths, Windows installation records (including custom installation folders) and common locations. Both `bin` and `resources/app/bin` CLI layouts are supported without executing the CLI shim.
+
+Unsupported startup content is retained. These editors open the project normally with an informational notice; expected capability differences do not prevent quick-launch from hiding. Unverified helper or Git Graph commands are never sent to them. Enter, double-click, Open and the palette share the same launch path, and all successful editor launches update Recent.
 
 **VS Code:** RepoJump launches `Code.exe` with `--new-window` and the project path as separate arguments. It checks the configured executable first, then PATH, registry entries and common installation locations. Set a path in Settings if automatic detection fails. Spaces, Chinese characters and shell punctuation remain part of the path.
 
@@ -89,7 +105,7 @@ Use **VS Code startup content** in the project menu to override the global setti
 
 An unavailable file, installation failure, missing Git Graph or timeout still leaves the project open and shows a warning. The saved option remains, and Recent is updated. Selecting Follow global setting removes the project's override.
 
-**Terminal:** Automatic mode tries Windows Terminal, then PowerShell. PowerShell uses the process working directory and `-NoProfile -NoExit`; project paths are never inserted into a shell script. Paths containing semicolons use PowerShell to avoid Windows Terminal command-separator ambiguity.
+**Terminal:** Choose Windows CMD, PowerShell, Windows Terminal or Automatic in Settings, then Save. Windows CMD launches `cmd.exe /D /K` directly in the project directory with registry AutoRun disabled. Windows Terminal uses its configured default shell, which may be PowerShell. Automatic mode tries Windows Terminal, then PowerShell. CMD and PowerShell use the process working directory; project paths are never inserted into a shell script. Automatic and Windows Terminal use PowerShell for paths containing semicolons to avoid Windows Terminal command-separator ambiguity.
 
 **Repository:** The project menu reads Git's `origin` and converts supported HTTP/S, SSH and scp-style URLs to browser links while preserving the host. GitHub, GitLab and other hosts are supported; Azure DevOps SSH URLs have a dedicated conversion.
 
@@ -124,7 +140,7 @@ The original `%LOCALAPPDATA%\com.farmc.repojump` directory keeps a small `storag
 
 Git Graph workspaces remain under `vscode-launches/` in that original application-data directory even when preferences move elsewhere. Requests and receipts are cleaned after consumption or expiry; workspace files remain for window restoration and are excluded from VS Code's recently opened list.
 
-Migration writes the new data before switching the locator and retains the old copy. A destination belonging to another profile is rejected. Existing AppData-only installations are migrated automatically. Configuration files use atomic replacement; damaged files are preserved and valid backups are recovered with a visible warning. Unsupported newer schemas are protected from writes. Installer upgrades retain application data.
+Migration writes the new data before switching the locator and retains the old copy. A destination belonging to another profile is rejected. Existing AppData-only installations are migrated automatically. State schema 2 migrates the old VS Code executable into the VS Code profile, keeps startup overrides and all other preferences, and defaults existing users to VS Code. Index and locator schemas remain 1. The original state is preserved as `state.pre-v2.json` before migration. To downgrade, exit RepoJump, preserve the current active store and local recovery copy, and restore the pre-migration state and matching locator together; schema-1 applications cannot write schema-2 state. Configuration files use atomic replacement; damaged files are preserved and valid backups are recovered with a visible warning. Unsupported newer schemas are protected from writes. Installer upgrades retain application data.
 
 If separate startup environments migrated the same configuration twice, Automatic storage reuses the existing root data when the user records match. Different records and custom-location profile conflicts remain protected. A fallback warning appears only while the preferred location is actually unavailable.
 

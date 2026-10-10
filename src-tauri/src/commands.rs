@@ -143,8 +143,36 @@ pub async fn launch_project(
     app: AppHandle,
     id: String,
     target: LaunchTarget,
+    editor_id: Option<String>,
 ) -> AppResult<LaunchResult> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<AppState>().launch(&app, &id, target))
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<AppState>().launch(&app, &id, target, editor_id)
+    })
+    .await
+    .map_err(|e| AppError::new("launchFailed", e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_editors(app: AppHandle) -> AppResult<Vec<crate::editors::EditorStatus>> {
+    let settings = app
+        .state::<AppState>()
+        .inner
+        .lock()
+        .unwrap()
+        .user
+        .settings
+        .clone();
+    tauri::async_runtime::spawn_blocking(move || crate::editors::statuses(&settings))
         .await
-        .map_err(|e| AppError::new("launchFailed", e.to_string()))?
+        .map_err(|e| AppError::new("editorNotFound", e.to_string()))
+}
+
+#[tauri::command]
+pub fn set_project_editor(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    editor_id: Option<String>,
+) -> AppResult<AppSnapshot> {
+    state.set_project_editor(&app, id, editor_id)
 }

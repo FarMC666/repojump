@@ -2,7 +2,10 @@ mod commands;
 mod data_location;
 pub mod detectors;
 pub mod discovery;
+mod editor_detection;
+mod editors;
 pub mod git;
+mod indexer;
 pub mod launcher;
 pub mod model;
 pub mod paths;
@@ -12,6 +15,7 @@ mod settings;
 pub mod storage;
 mod tray_menu;
 mod vscode_startup;
+mod watcher;
 
 use service::AppState;
 use tauri::{
@@ -102,6 +106,7 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
             }
+            watcher::WatchManager::start(app.handle());
             service::request_scan(app.handle());
             Ok(())
         })
@@ -135,9 +140,16 @@ pub fn run() {
             commands::copy_project_path,
             commands::get_git_metadata,
             commands::launch_project,
+            commands::get_editors,
+            commands::set_project_editor,
             picker::pick_path,
             tray_menu::sync_tray_language,
         ])
-        .run(tauri::generate_context!())
-        .expect("RepoJump could not start");
+        .build(tauri::generate_context!())
+        .expect("RepoJump could not start")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<AppState>().watcher.stop();
+            }
+        });
 }

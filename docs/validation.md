@@ -1,5 +1,50 @@
 # RepoJump 验收记录
 
+## 0.1.5：Windows CMD 终端选择（未发布更新）
+
+2026-10-11，新增独立 Windows CMD 设置，Windows Terminal 选项明确标注使用默认 Shell。npm、Cargo 和 Tauri 统一保持 0.1.5，正式 bundle identifier 不变；本阶段修复合入同一未发布版本。
+
+- typecheck、生产构建、56 项 Rust、19 项 Vitest、9 项 helper tests、fmt 和 Clippy all-targets / warnings as errors 通过。覆盖终端设置序列化/恢复、未知值拒绝、设置页 CMD 保存/再次打开、启动失败处理与 PowerShell 字面工作目录。
+- 独立 Tauri 数据和 WebView2 中，通过真实设置页保存 CMD，再按 Ctrl+Enter。实际 `cmd.exe` 窗口保持运行，读取控制台提示符确认进入含中文、空格、`&`、括号、分号、`$` 和 `%PATH%` 的原始目录；目录中的百分号没有被展开。终端操作没有更新 Recent。
+- 原生测试发现继承应用控制台/标准流会干扰 CMD 的交互生命周期。CMD 改用 Windows `CreateProcessW` 创建独立控制台，不继承应用句柄；可执行文件、固定 `/D /K` 参数、项目工作目录分别传递，不拼接用户 shell 命令，并关闭创建返回的进程/线程句柄。
+- 真实 PowerShell 选项仍启动 PowerShell。独立应用重启后设置页恢复 CMD、两个项目保留、无存储告警。state schema 仍为 2、index schema 仍为 1；既有终端值保留，不进行隐式转换。
+- 本机临时构建的 NSIS 打包及原位安装通过，安装期间 12 份配置/缓存/迁移备份 SHA256 不变。设置页保存 CMD，仅终端字段改变；实际 Ctrl+Enter 打开 `cmd.exe`，提示符位于选中项目，Recent 不变。正常退出与桌面重启后恢复 CMD、8 个项目及原有编辑器/Git Graph 设置，本地 recovery 与主状态一致。这是本机测试记录，未发布新版本。
+- 本次没有实测 Windows Terminal 的默认 Shell 切换或 Windows 10；CMD 及 PowerShell 的本机流程使用 Windows 11。原生夹具及结果位于 ignored `.validation/terminal-016/`。
+- 版本归一后重新完成六项检查和标准 NSIS 打包，并恢复本地安装为 0.1.5。主界面和设置页均显示 0.1.5，安装前后 12 份数据文件保持一致；8 个项目及用户当前保存的终端、编辑器和启动设置保留。结果及备份位于 ignored `.validation/version-015/`。
+
+当前本地安装包：`src-tauri/target/release/bundle/nsis/RepoJump_0.1.5_x64-setup.exe`，1,942,364 字节。SHA256：`7E3A6C6376742E02D09AACB0EE9141904EB53C5AB682A86536233377C2F036FB`。此产物尚未发布。
+
+## 0.1.5：Cursor 检测与启动反馈
+
+2026-10-10，同步 npm、Cargo、Tauri 版本至 0.1.5；主界面和设置页从 package.json 读取版本，正式 bundle identifier 保持不变。
+
+- typecheck、生产前端构建、53 项 Rust、18 项 Vitest、9 项 helper tests、fmt 和 Clippy all-targets / warnings as errors 通过。
+- 实际 Cursor 位于自定义安装目录 `D:\apps\cursor`，安装记录为 `Cursor (User)`；CLI 位于 `resources\app\bin`。检测增加已知产品的 Windows 安装记录、32/64 位注册表视图及嵌套 CLI 路径映射，不执行 CLI 或注册表命令字符串。
+- 独立 Tauri identifier / 数据 / Cursor profile 下，将 QA 进程 PATH 限制为 Windows 系统目录，仍自动检测到实际 Cursor executable；该次四编辑器检测约 73 ms。真实 Cursor 窗口打开了含中文、空格和 shell 字符的项目目录。
+- 复现全局默认 VS Code Git Graph 被 Cursor 继承的场景：项目正常打开，UI 显示含 Cursor 名称的非错误说明，Recent 更新，Git Graph 设置保留。快捷模式在同样的能力降级下正常隐藏；helper 或 Recent 保存失败仍保留错误提示及窗口，Vitest 覆盖混合告警。
+- Cursor 的 RepoJump helper / Git Graph capability 保持关闭。本次验证普通项目打开，不声称已验证相应高级能力。夹具、结果及安装备份保存在 ignored `.validation/cursor-015/`。
+- 标准 NSIS 0.1.5 打包及本机 0.1.4 → 0.1.5 原位安装通过。安装阶段 12 份配置/缓存/迁移备份的 SHA256 不变；已安装的程序与 release 仅有预期的 NSIS bundle 标记差异，VSIX 一致，快捷方式指向安装目录。正常启动后主界面及设置页显示 0.1.5，保留 8 个项目、全局 Cursor、手动 executable 和 Git Graph 设置，恢复副本与当前状态一致。
+
+## P0：文件监听、Editor Profiles 与 Action Palette
+
+2026-10-10，在 0.1.4 工作树上实现本阶段功能，版本号及正式 bundle identifier 保持不变。使用独立 QA identifier、独立应用数据/WebView2 目录和 VS Code profile 运行真实 Windows/Tauri 验收；没有安装覆盖正式应用。
+
+- `npm run typecheck`、`npm test`、`npm run build`、Rust tests、fmt check、Clippy all-targets / warnings as errors 通过。前端 14 项 Vitest、配套扩展 9 项 Node tests、Rust 50 项 tests；新增 jsdom 仅用于开发测试。
+- 用 510 个项目及一个 root 外 manual 条目验证 cache-first 启动和搜索。新建、删除、重命名、marker 新增/移除、manifest 技术标签更新、`.git` 新增、manual manifest 更新均通过真实原生监听。
+- `node_modules` 等 ignored directories 内生成文件和 500 次快速写入没有引发缓存重写；100 次 manifest 写入与多次手动 rescan 并发后最终标签正确。多 root 添加、修改、移除与正在运行的完整扫描没有发布过期来源。
+- 真实 NTFS junction 夹具未被索引。原生测试复现了父子目录独立监听阻止 Windows 目录重命名的问题；改为合并 native subtree handles、按 discovery visited set 在入队前过滤后，父目录重命名测试与原生回归通过。
+- 临时重命名隔离 root 模拟不可访问：缓存保留 missing 状态，收藏写入回退到本地 recovery；恢复目录后自动重新建立监听，随后 manifest 修改再次更新标签。真实进程重启恢复 roots、manual、收藏、分类、Recent、启动内容和编辑器设置，watcher 再次感知新项目。
+- schema-1 夹具迁移后默认仍是 VS Code，旧启动内容和用户元数据保留。Rust 验证原始 `state.pre-v2.json` 不被后续保存覆盖、index schema 仍为 1、未知 Editor ID 保留、future schema 保护、自定义位置断开/重连恢复最新 Editor Profiles 和 overrides。
+- 四种编辑器使用 Windows 原生探针 executable 验证 argument array、空格/中文/shell 字符、指定文件能力与普通打开降级、Recent、全局默认/项目覆盖/继承、临时 Open With、非法 executable 拒绝及数据保留。探针不代表对应厂商编辑器的真实打开行为。
+- 本机实际安装的 VS Code 自动检测、普通启动和指定文件通过隔离 profile 验证；VS Code CLI、bundled VSIX 安装、generated workspace 和真实 Git Graph receipt 通过。Git Graph 扩展使用本机已安装版本的隔离副本；缺失扩展和超时路径返回警告，保留项目及 Recent。
+- 真实 WebView2 检查 Tab、上下键、Enter、Esc、查询/选择恢复及设置展示；Vitest 额外覆盖 caret 恢复、disabled actions、菜单/Palette 共用执行逻辑、IME 和 repeated Enter guard。
+- 通过真实 Windows Ctrl+Alt+Shift+F12 唤起隔离窗口，关闭已有 Palette 并恢复搜索；键盘 Open With 成功后收起 quick-launch，窗口隐藏期间 watcher 仍更新索引。真实 Close to tray 保留进程和 watcher；禁用该选项后正常关闭进程完成 native handle 清理。
+- 实际将窗口客户区调整为 680×480，中文/深浅主题下 Palette 可滚动，设置底部按钮可见；截图经过检查。大窗口编辑器设置和 Open With 也经过检查。
+
+本次没有可用的 VS Code Insiders、Cursor、Windsurf 安装，也没有真实 SMB/UNC share 或可拔插硬盘。对应 executable 的原生参数与配置测试已通过，但厂商 GUI、网络通知可靠性及硬件拔插仍需设备验收。目录重命名模拟不能替代这些测试。本次没有执行 NSIS 发布或安装升级验收。
+
+隔离脚本、探针、夹具和截图保存在 ignored `.validation/p0/`。正式权限文件未增加通用 filesystem 或 shell 权限。
+
 ## 深色模式：石墨灰与柔和蓝
 
 2026-10-04，按 [配色修改计划](dark-theme-plan.md) 更新深色主题，代码改动集中在 `src/styles.css`。

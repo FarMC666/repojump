@@ -1,6 +1,6 @@
 use crate::{
     launcher,
-    model::{now_ms, AppError, AppResult, Settings, VscodeStartup},
+    model::{now_ms, AppError, AppResult, VscodeStartup},
     paths,
 };
 use serde::{Deserialize, Serialize};
@@ -303,14 +303,13 @@ pub fn open(
     app: &tauri::AppHandle,
     data: &Path,
     project: &Path,
-    settings: &Settings,
+    executable: &Path,
     startup: &VscodeStartup,
 ) -> AppResult<Vec<AppError>> {
-    let executable = launcher::vscode(settings)?;
     let mut warnings = Vec::new();
     match startup {
         VscodeStartup::Default => {
-            launcher::spawn(launcher::vscode_command(&executable, project, None))?;
+            launcher::spawn(launcher::vscode_command(executable, project, None))?;
         }
         VscodeStartup::File { path } => {
             let file = paths::project_file(project, path).map_err(|error| {
@@ -324,7 +323,7 @@ pub fn open(
                 }
             };
             launcher::spawn(launcher::vscode_command(
-                &executable,
+                executable,
                 project,
                 file.as_deref(),
             ))?;
@@ -335,13 +334,12 @@ pub fn open(
                 .resource_dir()
                 .map_err(|e| AppError::new("startupHelperFailed", e.to_string()))
                 .and_then(|resources| {
-                    ensure_helper(&executable, &resources.join("repojump-vscode.vsix"))
+                    ensure_helper(executable, &resources.join("repojump-vscode.vsix"))
                 })
                 .and_then(|()| ManagedLaunch::create(data, project));
             match prepared {
                 Ok(launch) => {
-                    let mut command =
-                        launcher::vscode_command(&executable, &launch.workspace, None);
+                    let mut command = launcher::vscode_command(executable, &launch.workspace, None);
                     command.arg("--skip-add-to-recently-opened");
                     launcher::spawn(command)?;
                     let remaining = launch.request.expires_at.saturating_sub(now_ms());
@@ -352,7 +350,7 @@ pub fn open(
                     }
                 }
                 Err(error) => {
-                    launcher::spawn(launcher::vscode_command(&executable, project, None))?;
+                    launcher::spawn(launcher::vscode_command(executable, project, None))?;
                     warnings.push(error);
                 }
             }

@@ -5,7 +5,7 @@ import type { Project } from './models';
 const project = (name: string, values: Partial<Project> = {}): Project => ({
   id: name, name, path: `D:\\代码\\apps\\${name}`, category: 'apps', categoryOverride: false,
   tags: ['TypeScript', 'React', 'Vite'], isGit: true, rootIds: ['root'], manual: false,
-  favorite: false, lastOpenedAt: null, availability: 'available', vscodeStartup: { kind: 'default' }, ...values,
+  favorite: false, lastOpenedAt: null, availability: 'available', editorId: null, vscodeStartup: { kind: 'default' }, ...values,
 });
 
 describe('project search and ordering', () => {

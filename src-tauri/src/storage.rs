@@ -1,4 +1,6 @@
-use crate::model::{AppError, AppResult, IndexCache, UserData, SCHEMA_VERSION};
+use crate::model::{
+    AppError, AppResult, IndexCache, UserData, INDEX_SCHEMA_VERSION, STATE_SCHEMA_VERSION,
+};
 use atomic_write_file::AtomicWriteFile;
 use std::{
     fs,
@@ -21,11 +23,28 @@ pub(crate) fn decode_user(bytes: &[u8]) -> AppResult<UserData> {
         .get("schemaVersion")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
-    if version > u64::from(SCHEMA_VERSION) {
+    if version > u64::from(STATE_SCHEMA_VERSION) {
         return Err(AppError::new("storageNewerVersion", version.to_string()));
     }
     // Version zero used the same fields without a version. Preserve them and fill defaults.
-    value["schemaVersion"] = SCHEMA_VERSION.into();
+
+    if version < 2 {
+        if value.get("settings").is_none() {
+            value["settings"] = serde_json::json!({});
+        }
+        if let Some(settings) = value["settings"].as_object_mut() {
+            let legacy = settings
+                .remove("vscodePath")
+                .unwrap_or(serde_json::Value::Null);
+            settings
+                .entry("defaultEditorId")
+                .or_insert_with(|| "vscode".into());
+            settings
+                .entry("editorProfiles")
+                .or_insert_with(|| serde_json::json!({"vscode": {"executablePath": legacy}}));
+        }
+    }
+    value["schemaVersion"] = STATE_SCHEMA_VERSION.into();
     serde_json::from_value(value).map_err(|e| AppError::new("storageCorrupt", e.to_string()))
 }
 
@@ -44,6 +63,20 @@ pub(crate) fn atomic(path: &Path, bytes: &[u8]) -> AppResult<()> {
         .map_err(|e| AppError::new("storageFailure", e.to_string()))?;
     file.commit()
         .map_err(|e| AppError::new("storageFailure", e.to_string()))
+}
+
+pub(crate) fn preserve_migration_checkpoint(directory: &Path, previous: &[u8]) -> AppResult<()> {
+    let value: serde_json::Value = serde_json::from_slice(previous)
+        .map_err(|e| AppError::new("storageCorrupt", e.to_string()))?;
+    let version = value
+        .get("schemaVersion")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let path = directory.join("state.pre-v2.json");
+    if version < 2 && !path.exists() {
+        atomic(&path, previous)?;
+    }
+    Ok(())
 }
 
 impl Storage {
@@ -110,10 +143,22 @@ impl Storage {
                 UserData::default()
             }
         };
+        if !read_only {
+            if let Some(previous) = fs::read(&primary)
+                .or_else(|_| fs::read(directory.join("state.json.bak")))
+                .ok()
+                .filter(|bytes| decode_user(bytes).is_ok())
+            {
+                if let Err(error) = preserve_migration_checkpoint(&directory, &previous) {
+                    warnings.push(error);
+                    read_only = true;
+                }
+            }
+        }
         let cache = fs::read(directory.join("index.json"))
             .ok()
             .and_then(|b| serde_json::from_slice::<IndexCache>(&b).ok())
-            .filter(|c| c.schema_version == SCHEMA_VERSION)
+            .filter(|c| c.schema_version == INDEX_SCHEMA_VERSION)
             .unwrap_or_default();
         (
             Self {
@@ -146,6 +191,7 @@ impl Storage {
                     path.display().to_string(),
                 ));
             }
+            preserve_migration_checkpoint(&self.directory, &previous)?;
             atomic(&self.directory.join("state.json.bak"), &previous)?;
         }
         let bytes = serde_json::to_vec_pretty(user)
@@ -160,12 +206,84 @@ impl Storage {
         let bytes =
             serde_json::to_vec(cache).map_err(|e| AppError::new("cacheFailure", e.to_string()))?;
         atomic(&self.directory.join("index.json"), &bytes)
+            .map_err(|error| AppError::new("cacheFailure", error.detail.unwrap_or_default()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn v1_editor_migration_preserves_every_preference_and_original_checkpoint() {
+        let original = serde_json::json!({
+            "schemaVersion": 1, "profileId": "released", "roots": [{"id":"r", "path":"D:/代码"}],
+            "manualProjects":["D:/manual"], "favorites":["p"], "recent":{"p":123}, "categoryOverrides":{"p":"apps"},
+            "vscodeStartupOverrides":{"p":{"kind":"gitGraph"}},
+            "settings":{"vscodePath":"D:/My Editor/Code.exe", "defaultVscodeStartup":{"kind":"file","path":"首页.html"},
+                "theme":"light", "language":"zh-CN", "scanDepth":3, "terminal":"powershell", "globalShortcut":"Ctrl+Alt+J", "closeToTray":false, "dataLocation":"D:/custom"}
+        });
+        let bytes = serde_json::to_vec(&original).unwrap();
+        let mut migrated = decode_user(&bytes).unwrap();
+        assert_eq!(migrated.schema_version, 2);
+        assert_eq!(migrated.settings.default_editor_id, "vscode");
+        assert_eq!(
+            migrated.settings.editor_profiles["vscode"]
+                .executable_path
+                .as_deref(),
+            Some("D:/My Editor/Code.exe")
+        );
+        assert!(migrated.editor_overrides.is_empty());
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("state.json"), &bytes).unwrap();
+        let (store, _, _, _) = Storage::load(temp.path().into());
+        store.save_user(&migrated).unwrap();
+        migrated
+            .editor_overrides
+            .insert("p".into(), "cursor".into());
+        store.save_user(&migrated).unwrap();
+        let (_, restored, _, warnings) = Storage::load(temp.path().into());
+        assert!(warnings.is_empty());
+        assert_eq!(
+            serde_json::to_value(restored).unwrap(),
+            serde_json::to_value(migrated).unwrap()
+        );
+        assert_eq!(
+            fs::read(temp.path().join("state.pre-v2.json")).unwrap(),
+            bytes
+        );
+        let saved = serde_json::from_slice::<serde_json::Value>(
+            &fs::read(temp.path().join("state.json")).unwrap(),
+        )
+        .unwrap();
+        for key in [
+            "roots",
+            "manualProjects",
+            "favorites",
+            "recent",
+            "categoryOverrides",
+            "vscodeStartupOverrides",
+        ] {
+            assert_eq!(saved[key], original[key], "{key}");
+        }
+        for key in [
+            "theme",
+            "language",
+            "scanDepth",
+            "terminal",
+            "globalShortcut",
+            "closeToTray",
+            "dataLocation",
+            "defaultVscodeStartup",
+        ] {
+            assert_eq!(saved["settings"][key], original["settings"][key], "{key}");
+        }
+        let unknown = decode_user(br#"{"schemaVersion":2,"settings":{"defaultEditorId":"future","editorProfiles":{"future":{"executablePath":"X:/future.exe"}}},"editorOverrides":{"p":"future"}}"#).unwrap();
+        assert_eq!(unknown.editor_for("p"), "future");
+        store.save_cache(&IndexCache::default()).unwrap();
+        let (_, _, cache, warnings) = Storage::load(temp.path().into());
+        assert!(warnings.is_empty());
+        assert_eq!(cache.schema_version, 1);
+    }
     #[test]
     fn global_startup_is_compatible_with_old_settings_and_persists_with_overrides() {
         use crate::model::VscodeStartup;

@@ -1,6 +1,6 @@
 [package]
 name = "repojump"
-version = "0.1.4"
+version = "0.1.5"
 description = "A local development project launcher"
 authors = ["FarMC"]
 edition = "2021"
@@ -24,10 +24,11 @@ atomic-write-file = "0.3"
 dunce = "1"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
+notify = { version = "8.2", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
 
 [dev-dependencies]
 tempfile = "3"

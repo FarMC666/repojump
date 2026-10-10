@@ -129,6 +129,15 @@ kbd { font: 10px 'Segoe UI', sans-serif; color: var(--secondary); border: 1px so
 .project-menu button kbd, .project-menu button > svg:last-child:not(:first-child) { margin-left: auto; }
 .project-menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 3px; }
 .danger { color: var(--danger); }
+.project-menu { max-height: calc(100vh - 16px); overflow-y: auto; }
+.editor-profile { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.editor-profile:last-child { border-bottom: 0; }
+.editor-profile p { overflow-wrap: anywhere; }
+.palette-list { max-height: min(360px, calc(100vh - 240px)); overflow-y: auto; outline: none; }
+.palette-action { display: flex; align-items: center; gap: 12px; padding: 11px 10px; border-radius: 5px; cursor: pointer; }
+.palette-action span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.palette-action.selected { background: var(--hover); }
+.palette-action[aria-disabled='true'] { color: var(--muted); cursor: default; }
 .dialog { color: var(--text); background: var(--raised); padding: 0; border: 1px solid var(--border); border-radius: 11px; width: min(440px, calc(100vw - 40px)); max-height: calc(100vh - 60px); box-shadow: var(--shadow); overflow: hidden; }
 .dialog::backdrop { background: var(--backdrop); }
 .dialog-header { display: flex; align-items: center; justify-content: space-between; padding: 17px 22px; border-bottom: 1px solid var(--border); }

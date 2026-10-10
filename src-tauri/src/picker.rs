@@ -79,7 +79,7 @@ fn select(kind: PickerKind, initial_folder: Option<PathBuf>) -> AppResult<Option
                 options |= FOS_FILEMUSTEXIST;
                 dialog
                     .SetFileTypes(&[COMDLG_FILTERSPEC {
-                        pszName: w!("VS Code executable"),
+                        pszName: w!("Editor executable / 编辑器可执行文件"),
                         pszSpec: w!("*.exe"),
                     }])
                     .map_err(failure)?;

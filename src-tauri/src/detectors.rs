@@ -142,6 +142,17 @@ fn package(path: &Path) -> Option<Value> {
     serde_json::from_slice(&bytes).ok()
 }
 
+/// Watch hints reuse the detector registry, including files that only contribute tags.
+pub fn relevant_file(name: &str) -> bool {
+    let name = name.to_lowercase();
+    DETECTORS.iter().any(|d| {
+        d.markers.iter().any(|m| m.eq_ignore_ascii_case(&name))
+            || d.extensions.iter().any(|e| name.ends_with(e))
+    }) || ["tsconfig.", "next.config.", "vite.config."]
+        .iter()
+        .any(|prefix| name.starts_with(prefix))
+}
+
 pub fn detect(path: &Path, entries: &DirectoryEntries, force: bool) -> Option<ProjectRecord> {
     let mut found = force;
     let mut tags = BTreeSet::new();

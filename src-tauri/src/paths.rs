@@ -32,6 +32,24 @@ pub fn is_reparse(metadata: &std::fs::Metadata) -> bool {
     }
 }
 
+/// Revalidate every existing component: an indexed directory may have been replaced by a junction.
+pub fn safe_scan_directory(root: &Path, path: &Path) -> std::io::Result<()> {
+    path.strip_prefix(root)
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::PermissionDenied))?;
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component);
+        if matches!(component, std::path::Component::Prefix(_)) {
+            continue;
+        }
+        let metadata = std::fs::symlink_metadata(&current)?;
+        if !metadata.is_dir() || is_reparse(&metadata) {
+            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        }
+    }
+    Ok(())
+}
+
 /// Validate a relative startup path without requiring a particular project to contain it.
 pub fn startup_file_path(relative: &str) -> AppResult<String> {
     let invalid = || AppError::new("startupFileInvalid", relative);

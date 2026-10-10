@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { api } from '../api';
-import type { AppSnapshot, Project, VscodeStartup } from '../models';
+import type { AppSnapshot, EditorCapabilities, Project, VscodeStartup } from '../models';
 import { errorText, type Translate } from '../i18n';
 import { Dialog } from './Dialog';
 
-export function VscodeStartupDialog({ project, defaultStartup, t, onClose, update }: {
-  project: Project; defaultStartup: VscodeStartup; t: Translate; onClose: () => void; update: (snapshot: AppSnapshot) => void;
+export function VscodeStartupDialog({ project, defaultStartup, capabilities, t, onClose, update }: {
+  project: Project; capabilities?: EditorCapabilities; defaultStartup: VscodeStartup; t: Translate; onClose: () => void; update: (snapshot: AppSnapshot) => void;
 }) {
   const [kind, setKind] = useState(project.vscodeStartup.kind);
   const [path, setPath] = useState(project.vscodeStartup.kind === 'file' ? project.vscodeStartup.path : '');
@@ -25,12 +25,12 @@ export function VscodeStartupDialog({ project, defaultStartup, t, onClose, updat
   return <Dialog title={t('vscodeStartup')} t={t} onClose={() => { if (!busy) onClose(); }}>
     <form onSubmit={e => { e.preventDefault(); void save(); }}>
       <div className="dialog-body startup-body">
-        <p className="dialog-project">{project.name}</p>
+        <p className="dialog-project">{project.name}</p>{!capabilities?.startupHelper && <p>{t(capabilities?.specificFile ? 'editorFileOnly' : 'editorBasicOnly')}</p>}
         <label htmlFor="startup-kind">{t('startupContent')}</label>
         <select id="startup-kind" autoFocus value={kind} disabled={busy} onChange={e => { setKind(e.target.value as VscodeStartup['kind']); setError(null); }}>
           <option value="default">{t('startupInherit')}</option>
-          <option value="file">{t('startupFile')}</option>
-          <option value="gitGraph">Git Graph</option>
+          <option disabled={!capabilities?.specificFile} value="file">{t('startupFile')}</option>
+          <option disabled={!capabilities?.gitGraph} value="gitGraph">Git Graph</option>
         </select>
         {kind === 'default' && <p>{t('startupInheritHint')} {defaultStartup.kind === 'file' ? `${t('startupFile')} (${defaultStartup.path})` : defaultStartup.kind === 'gitGraph' ? 'Git Graph' : t('startupDefault')}</p>}
         {kind === 'file' && <>

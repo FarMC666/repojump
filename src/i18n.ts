@@ -1,6 +1,11 @@
 import type { AppError, Settings } from './models';
 
 const en = {
+  openEditor: 'Open in default editor', openWith: 'Open with', defaultEditor: 'Default editor', projectEditor: 'Project editor', editorExecutable: 'Editor executable', detectedExecutable: 'Last saved detection',
+  editorInheritance: 'Projects follow the global editor unless overridden. Open With applies only to this launch.', editorBasicOnly: 'Supports normal project opening. Saved VS Code startup settings are retained for compatible editors.', editorFileOnly: 'Supports opening a specific file. RepoJump helper and Git Graph are unavailable.',
+  editorNotFound: 'Editor could not be found. Select its executable in Settings.', editorInvalid: 'The configured editor executable is unavailable or does not match this editor. Change it in Settings.', editorUnsupported: 'This editor profile is unsupported.', editorNotConfigured: 'This editor is not configured. Enable it in Settings.', editorStartupUnsupported: 'Opened in {editor}. Saved VS Code startup settings are retained for editors that support them.',
+  actionPalette: 'Project actions', paletteHint: '↑ ↓ choose · Enter run · Esc return to search', paletteShortcut: 'actions',
+
   vscodeStartup: 'VS Code startup content', startupContent: 'Show when opening this project', startupDefault: 'Default', startupFile: 'Specified file', startupFilePath: 'Project-relative file path',
   startupDefaultHint: 'Use the usual VS Code startup behavior.', startupFileHint: 'Choose an existing file inside this project, such as index.html or src/main.ts.',
   defaultVscodeStartup: 'Default VS Code startup content', defaultStartupHint: 'Used by projects that follow the global setting. Project-specific startup content takes priority.',
@@ -21,7 +26,7 @@ const en = {
   welcome: 'Your projects, one shortcut away.', welcomeBody: 'Add a folder that contains your code. RepoJump will find your projects automatically.',
   noResults: 'No matching projects', noResultsBody: 'Try a project name, path, category or technology.',
   noFavorites: 'Keep your go-to projects here', noFavoritesBody: 'Star a project to keep it at the top of your list.',
-  noRecent: 'Your next project starts here', noRecentBody: 'Projects opened in VS Code appear here automatically.',
+  noRecent: 'Your next project starts here', noRecentBody: 'Projects opened in an editor appear here automatically.',
   noProjects: 'No projects found', noProjectsBody: 'Add a project folder manually, change the scan depth or choose another code root.',
   desktopOnly: 'Open RepoJump as a desktop app to access your projects.', loading: 'Loading your project index…', retry: 'Retry',
   openCode: 'Open in VS Code', openTerminal: 'Open in Terminal', openExplorer: 'Open in Explorer', copyPath: 'Copy path', openRepository: 'Open repository',
@@ -43,16 +48,23 @@ const en = {
   storageFailure: 'Local data could not be saved. Check folder permissions and available disk space.', storageCorrupt: 'The local settings file is invalid.', storageReadOnly: 'Local data is read-only. Changes cannot be saved.', storageNewerVersion: 'These settings were created by a newer RepoJump. Install that version to use them safely.',
   storageRecovered: 'Settings were recovered from a backup. The damaged file has been preserved.', storageReset: 'The settings file was damaged and has been preserved. No valid backup was found; a new configuration is being used.', cacheFailure: 'The project cache could not be saved. Your settings are retained.',
   storageLocationConflict: 'This data folder belongs to another configuration or is not a regular folder. Choose a different location.', storageLocationFallback: 'The preferred data location is unavailable. RepoJump is using the default local data folder.', storageLocationRecovered: 'The data location record was damaged and has been preserved. RepoJump recovered using its local copy.', storageBackupFailure: 'Changes were saved, but the local recovery copy could not be updated. Check the default data folder permissions.',
-  vscodeInvalid: 'The configured VS Code executable is unavailable. Change it in Settings.', vscodeNotFound: 'VS Code could not be found. Select Code.exe in Settings.', launchFailed: 'The project could not be opened.', recentSaveFailed: 'VS Code was started, but Recent could not be saved.',
-  terminalNotFound: 'The selected terminal is unavailable. Choose Automatic or PowerShell in Settings.', repositoryUnavailable: 'No supported origin repository URL was found.', clipboardFailed: 'The path could not be copied.',
+  vscodeInvalid: 'The configured VS Code executable is unavailable. Change it in Settings.', vscodeNotFound: 'VS Code could not be found. Select Code.exe in Settings.', launchFailed: 'The project could not be opened.', recentSaveFailed: 'The editor was started, but Recent could not be saved.',
+  terminalCmd: 'Windows CMD', terminalWindows: 'Windows Terminal (default shell)',
+  terminalNotFound: 'The selected terminal is unavailable. Choose another terminal in Settings.', repositoryUnavailable: 'No supported origin repository URL was found.', clipboardFailed: 'The path could not be copied.',
   shortcutConflict: 'The global shortcut could not be registered. Choose another shortcut in Settings.', shortcutInvalid: 'Enter a valid shortcut, such as Ctrl+Alt+P.', invalidSettings: 'Some settings are invalid.', categoryInvalid: 'Enter a category name with 1–64 characters.',
   gitUnavailable: 'Git information could not be read.', unexpected: 'Something went wrong. Try again.', directoryMissing: 'Folder missing', directoryUnreadable: 'Folder cannot be read',
   pickerFailed: 'The folder or file picker could not be opened.', selected: 'selected', quick: 'Quick launch', enterHint: 'open project', navigateHint: 'navigate', searchHint: 'search', version: 'Version',
+  watcherUnavailable: 'Automatic monitoring is unavailable for some folders. Cached projects are kept; retrying in the background. You can also rescan.',
   trayUpdateFailed: 'The tray menu language could not be updated. Restart RepoJump to retry.',
 } as const;
 
 type Key = keyof typeof en;
 const zh: Record<Key, string> = {
+  openEditor: '使用默认编辑器打开', openWith: '使用其他编辑器打开', defaultEditor: '默认编辑器', projectEditor: '项目编辑器', editorExecutable: '编辑器可执行文件', detectedExecutable: '上次保存后的检测结果',
+  editorInheritance: '项目默认继承全局编辑器，可单独覆盖。「使用其他编辑器打开」仅影响本次启动。', editorBasicOnly: '支持正常打开项目。已保存的 VS Code 启动设置会保留，供支持相应功能的编辑器使用。', editorFileOnly: '支持指定文件；暂不支持 RepoJump helper 和 Git Graph。',
+  editorNotFound: '未找到编辑器，请在设置中选择对应的可执行文件。', editorInvalid: '编辑器可执行文件无效或与所选编辑器不匹配，请在设置中修改。', editorUnsupported: '暂不支持此编辑器 Profile。', editorNotConfigured: '此编辑器尚未配置，请先在设置中启用。', editorStartupUnsupported: '已用 {editor} 打开项目。VS Code 启动设置已保留，供支持相应功能的编辑器使用。',
+  actionPalette: '项目动作', paletteHint: '↑ ↓ 选择 · Enter 执行 · Esc 返回搜索', paletteShortcut: '动作',
+
   vscodeStartup: 'VS Code 启动内容', startupContent: '打开此项目时显示', startupDefault: '默认', startupFile: '指定文件', startupFilePath: '项目内的文件相对路径',
   startupDefaultHint: '使用 VS Code 原有的启动行为。', startupFileHint: '选择项目内已存在的文件，例如 index.html 或 src/main.ts。',
   defaultVscodeStartup: '默认 VS Code 启动内容', defaultStartupHint: '用于跟随全局设置的项目，项目单独配置的启动内容优先。',
@@ -73,7 +85,7 @@ const zh: Record<Key, string> = {
   welcome: '更快找到你的下一个项目。', welcomeBody: '添加存放代码的根目录，RepoJump 会自动发现其中的项目。',
   noResults: '没有匹配的项目', noResultsBody: '试试项目名称、路径、分类或技术类型。',
   noFavorites: '把常用项目放在这里', noFavoritesBody: '收藏项目，让它始终显示在列表顶部。',
-  noRecent: '从这里开始下一个项目', noRecentBody: '在 VS Code 中打开的项目会自动出现在这里。',
+  noRecent: '从这里开始下一个项目', noRecentBody: '在编辑器中打开的项目会自动出现在这里。',
   noProjects: '没有发现项目', noProjectsBody: '可以手动添加项目文件夹、调整扫描深度，或选择其他代码根目录。',
   desktopOnly: '请启动 RepoJump 桌面程序以访问本地项目。', loading: '正在读取项目索引…', retry: '重试',
   openCode: '在 VS Code 中打开', openTerminal: '在终端中打开', openExplorer: '在资源管理器中打开', copyPath: '复制路径', openRepository: '打开仓库网页',
@@ -95,11 +107,13 @@ const zh: Record<Key, string> = {
   storageFailure: '无法保存本地数据，请检查目录权限和剩余磁盘空间。', storageCorrupt: '本地配置文件无效。', storageReadOnly: '本地数据为只读状态，无法保存更改。', storageNewerVersion: '配置来自更新版本的 RepoJump，请使用该版本读取数据。',
   storageRecovered: '已从备份恢复设置，损坏的文件已保留。', storageReset: '配置文件已损坏且没有有效备份，原文件已保留，目前使用新配置。', cacheFailure: '无法保存项目缓存，用户设置仍然保留。',
   storageLocationConflict: '该数据目录属于其他配置或不是普通文件夹，请选择其他位置。', storageLocationFallback: '首选数据位置不可用，已使用默认本地数据目录。', storageLocationRecovered: '数据位置记录已损坏并保留，已使用本地副本恢复。', storageBackupFailure: '更改已保存，但本地恢复副本未能更新，请检查默认数据目录的权限。',
-  vscodeInvalid: '指定的 VS Code 可执行文件不可用，请在设置中修改。', vscodeNotFound: '未找到 VS Code，请在设置中选择 Code.exe。', launchFailed: '无法打开此项目。', recentSaveFailed: 'VS Code 已启动，但最近打开记录未能保存。',
-  terminalNotFound: '所选终端不可用，请在设置中选择自动或 PowerShell。', repositoryUnavailable: '未找到可识别的 origin 仓库地址。', clipboardFailed: '无法复制项目路径。',
+  vscodeInvalid: '指定的 VS Code 可执行文件不可用，请在设置中修改。', vscodeNotFound: '未找到 VS Code，请在设置中选择 Code.exe。', launchFailed: '无法打开此项目。', recentSaveFailed: '编辑器已启动，但最近打开记录未能保存。',
+  terminalCmd: 'Windows CMD（命令提示符）', terminalWindows: 'Windows Terminal（默认 Shell）',
+  terminalNotFound: '所选终端不可用，请在设置中选择其他终端。', repositoryUnavailable: '未找到可识别的 origin 仓库地址。', clipboardFailed: '无法复制项目路径。',
   shortcutConflict: '无法注册全局快捷键，请在设置中选择其他组合。', shortcutInvalid: '请输入有效的快捷键，例如 Ctrl+Alt+P。', invalidSettings: '部分设置无效。', categoryInvalid: '分类名称需要包含 1–64 个字符。',
   gitUnavailable: '无法读取 Git 信息。', unexpected: '操作失败，请重试。', directoryMissing: '目录不存在', directoryUnreadable: '无法读取目录',
   pickerFailed: '无法打开目录或文件选择器。', selected: '已选择', quick: '快捷启动', enterHint: '打开项目', navigateHint: '切换选择', searchHint: '搜索', version: '版本',
+  watcherUnavailable: '部分目录暂时无法自动监听，已保留缓存并在后台重试，也可手动重新扫描。',
   trayUpdateFailed: '托盘菜单语言未能更新，请重启 RepoJump 后重试。',
 };
 
@@ -110,5 +124,10 @@ export function translator(language: 'zh-CN' | 'en') { return (key: Key) => (lan
 export type Translate = ReturnType<typeof translator>;
 export function errorText(error: unknown, t: Translate): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as AppError).code) : 'unexpected';
-  return t(code in en ? code as Key : 'unexpected');
+  const message = t(code in en ? code as Key : 'unexpected');
+  if (code === 'editorStartupUnsupported') {
+    const detail = (error as AppError).detail;
+    return message.replace('{editor}', typeof detail === 'string' ? detail : t('defaultEditor'));
+  }
+  return message;
 }
